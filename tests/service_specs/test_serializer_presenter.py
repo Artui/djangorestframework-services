@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
+from django.test import RequestFactory
 from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.dispatch.audience_projection_for_spec import (
     audience_projection_for_spec,
@@ -818,3 +819,82 @@ def test_an_offline_pair_is_built_for_its_own_action_within_one_edge_call() -> N
         EDGE_CALL.reset(token)
 
     assert (first["view_seen"].action, second["view_seen"].action) == ("publish", "archive")
+
+
+class _ReadsTheQuery(serializers.Serializer):
+    """Reads the request's query string and the view's action, tolerating a request DRF never wrapped."""
+
+    name = serializers.CharField()
+    query = serializers.SerializerMethodField()
+    action = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+
+    def get_query(self, obj: Any) -> dict[str, list[str]] | None:
+        query_params = getattr(self.context["request"], "query_params", None)
+        return None if query_params is None else dict(query_params.lists())
+
+    def get_action(self, obj: Any) -> Any:
+        view = self.context["view"]
+        return None if view is None else view.action
+
+    def get_user(self, obj: Any) -> Any:
+        return getattr(self.context["request"], "user", None)
+
+
+def test_a_carried_django_request_is_wrapped_with_the_shapes_as_its_query_string() -> None:
+    principal = object()
+    arrived = RequestFactory().get("/chat/", {"thread": "7"})
+    context = PresentationContext(
+        principal,
+        call_context={"request": arrived, "view": None, "action": "publish"},
+        shapes=MappingProxyType({"fields": ["name"]}),
+    )
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    # The shapes replace the query string of the endpoint the run arrived on.
+    assert payload["query"] == {"fields": ["name"]}
+    assert payload["action"] == "publish"
+    assert payload["user"] is principal
+    # The caller's request is never written to.
+    assert dict(arrived.GET.lists()) == {"thread": ["7"]}
+
+
+def test_a_carried_django_request_under_no_shape_has_an_empty_query_string() -> None:
+    arrived = RequestFactory().get("/chat/", {"thread": "7"})
+    context = PresentationContext(object(), ambient=MappingProxyType({"request": arrived}))
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    assert payload["query"] == {}
+
+
+def test_a_carried_view_is_kept_beside_a_wrapped_django_request() -> None:
+    arrived = RequestFactory().get("/chat/")
+    held = build_offline_context(object(), {}, action="role")
+    context = PresentationContext(
+        object(), call_context={"request": arrived, "view": held.view, "action": "publish"}
+    )
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    assert payload["query"] == {}
+    assert payload["action"] == "role"
+
+
+def test_an_offline_pair_is_built_for_its_own_django_request_within_one_edge_call() -> None:
+    principal = object()
+    presenter = SerializerPresenter(_Who)
+    first_arrived, second_arrived = RequestFactory().get("/a/"), RequestFactory().get("/b/")
+    token = EDGE_CALL.set(EdgeCallState())
+    try:
+        first = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"request": first_arrived})
+        )
+        second = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"request": second_arrived})
+        )
+    finally:
+        EDGE_CALL.reset(token)
+
+    assert (first["request_seen"].path, second["request_seen"].path) == ("/a/", "/b/")

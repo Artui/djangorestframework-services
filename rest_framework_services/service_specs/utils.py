@@ -33,7 +33,7 @@ from typing import Any, cast
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db import DatabaseError
 from django.db.models import QuerySet
-from django.http import QueryDict
+from django.http import HttpRequest, QueryDict
 from django.utils.translation import gettext
 from django_service_specs.parameters.coded_message import CodedMessage
 from django_service_specs.parameters.invalid_arguments import (
@@ -581,7 +581,7 @@ class EdgeCallState:
       (``context_answer``).
     - ``offline_pairs``: each offline request and view built in the call for
       a principal, the arguments they carry, the shapes on the request's
-      query string and the view's action, so the descriptions of one call with neither share one
+      query string, the view's action and the Django request it copies, so the descriptions of one call with neither share one
       pair (``offline_pair``).
     - ``describe_binding``: the body, row and flags the call binds its own
       input serializer to (``describe_with``).
@@ -622,9 +622,7 @@ class EdgeCallState:
     context_answers: dict[tuple[Any, ...], tuple[Any, Mapping[str, Any]]] = dataclasses.field(
         default_factory=dict
     )
-    offline_pairs: dict[tuple[int, int, int | None, str | None], tuple[Any, Any, Any, Any]] = (
-        dataclasses.field(default_factory=dict)
-    )
+    offline_pairs: dict[tuple[Any, ...], tuple[Any, ...]] = dataclasses.field(default_factory=dict)
     describe_binding: DescribeBinding | None = None
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
     row_pending: bool = False
@@ -815,9 +813,16 @@ def serializer_context(
        Its view's ``action`` is the context's ``action`` (``offline_action``).
        One alone is kept as it is, beside a ``None`` for the other: pairing a
        carried request with a view built around another one would describe a
-       call that never happened. A carried request is never given the shapes:
-       over HTTP it carries its own query string, and off HTTP the edge
-       writes a declared ``QueryParam`` onto it.
+       call that never happened. A carried DRF ``Request`` is never given the
+       shapes: over HTTP it carries its own query string, and off HTTP the edge
+       writes a declared ``QueryParam`` onto it. **A carried Django request
+       DRF has not wrapped**, the request a run arrived on as the kernel's
+       call context holds it, is wrapped: the pair is built around a copy of
+       it whose query string is the shapes, replacing its own
+       (``offline_pair``), and its view stands in where the call carries
+       none, so it is built around that request and carries the context's
+       ``action``. A carried view is kept as it is
+       (test_a_carried_view_is_kept_beside_a_wrapped_django_request).
     2. and 3. **The view's hooks**, ``view_layers``: the directional and
        per-action hooks the view resolved, one direction's half of what the
        edge carries: the input half from the call's ``EdgeCallState``, the
@@ -853,9 +858,21 @@ def serializer_context(
     """
     request = carried("request", ambient, call_context)
     view = carried("view", ambient, call_context)
-    if request is None and view is None:
-        offline = offline_pair(principal, arguments, shapes, action=offline_action(call_context))
-        request, view = offline.request, offline.view
+    plain = request if isinstance(request, HttpRequest) else None
+    # One branch to coverage: a plain request is held by
+    # test_a_carried_django_request_is_wrapped_with_the_shapes_as_its_query_string,
+    # which fails if it is used unwrapped, and neither carried by
+    # test_the_serializer_context_carries_an_offline_request_for_the_principal.
+    if plain is not None or (request is None and view is None):
+        offline = offline_pair(
+            principal,
+            arguments,
+            shapes,
+            action=offline_action(call_context),
+            http_request=plain,
+        )
+        request = offline.request
+        view = offline.view if view is None else view
     context = call_base_context(view=view, request=request)
     context.update(view_layers or {})
     if provider is not None:
@@ -929,6 +946,7 @@ def offline_pair(
     shapes: Mapping[str, Any] | None = None,
     *,
     action: str | None = None,
+    http_request: HttpRequest | None = None,
 ) -> Any:
     """``build_offline_context(principal, arguments)``, built once in an edge call for both.
 
@@ -952,22 +970,52 @@ def offline_pair(
     fourth part of the key
     (test_an_offline_pair_is_built_for_its_own_action_within_one_edge_call,
     which fails without it).
+
+    ``http_request`` is a Django request the call carries, which DRF has not
+    wrapped: the request a run arrived on, by the convention of the kernel's
+    call context. The pair is then built around a copy of it, as
+    ``build_offline_context(http_request=)`` builds one, so its headers and
+    session are the arrived-on request's while its ``user`` is the principal.
+    **The shapes replace its query string**, and an empty one stands in where
+    the call sent none: that string is the endpoint's the run arrived on,
+    not this operation's, so a serializer reading ``request.query_params``
+    reads what the caller sent for this spec and nothing else
+    (test_a_carried_django_request_under_no_shape_has_an_empty_query_string).
+    It is the fifth part of the key
+    (test_an_offline_pair_is_built_for_its_own_django_request_within_one_edge_call,
+    which fails without it).
     """
-    query_params = dict(shapes) if shapes else None
+    query_params = dict(shapes or {}) if shapes or http_request is not None else None
     state = EDGE_CALL.get()
     if state is None:
-        return build_offline_context(principal, arguments, query_params=query_params, action=action)
-    key = (id(principal), id(arguments), id(shapes) if shapes else None, action)
+        return build_offline_context(
+            principal,
+            arguments,
+            http_request=http_request,
+            query_params=query_params,
+            action=action,
+        )
+    key = (
+        id(principal),
+        id(arguments),
+        id(shapes) if shapes else None,
+        action,
+        None if http_request is None else id(http_request),
+    )
     held = state.offline_pairs.get(key)
     if held is None:
         # The objects are held beside their ids, so no id in a key is reused
         # by another object while the call lasts.
         built = build_offline_context(
-            principal, arguments, query_params=query_params, action=action
+            principal,
+            arguments,
+            http_request=http_request,
+            query_params=query_params,
+            action=action,
         )
-        held = (principal, arguments, shapes, built)
+        held = (principal, arguments, shapes, http_request, built)
         state.offline_pairs[key] = held
-    return held[3]
+    return held[-1]
 
 
 def _answerable(fn: Callable[..., Any], pool: Mapping[str, Any]) -> bool:

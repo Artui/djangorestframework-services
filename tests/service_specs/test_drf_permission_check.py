@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.test import RequestFactory
 from django_service_specs.authorization.not_permitted import NotPermitted as KernelNotPermitted
 from django_service_specs.dispatch.authorize import authorize
 from django_service_specs.dispatch.authorize_target import authorize_target
@@ -21,6 +22,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.not_permitted import NotPermitted
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -436,3 +438,37 @@ class TestTheCallsRequestAndView:
         )
 
         assert _asked()[1].action == "role"
+
+    def test_a_carried_django_request_is_wrapped_with_the_routed_query_string(self) -> None:
+        principal = AnonymousUser()
+        arrived = RequestFactory().get("/chat/", {"thread": "7"})
+        spec = ServiceSpec(
+            service=_create, permission_classes=[_Pairs], reads=[QueryParam("fields")]
+        )
+
+        authorize(
+            spec,
+            principal,
+            arguments={"fields": "name"},
+            call_context={"request": arrived, "view": None, "action": "publish"},
+        )
+
+        request, view = _asked()
+        query_params = getattr(request, "query_params", None)
+        assert query_params is not None and dict(query_params.lists()) == {"fields": ["name"]}
+        assert request.user is principal
+        assert view.request is request
+        assert view.action == "publish"
+        assert dict(arrived.GET.lists()) == {"thread": ["7"]}
+
+    def test_a_carried_django_request_asked_with_no_arguments_keeps_its_query_string(
+        self,
+    ) -> None:
+        arrived = RequestFactory().get("/chat/", {"thread": "7"})
+        check = DRFPermissionCheck([_Pairs])
+
+        check.has_permission(AnonymousUser(), None, request=arrived)
+
+        request, _ = _asked()
+        query_params = getattr(request, "query_params", None)
+        assert query_params is not None and dict(query_params.lists()) == {"thread": ["7"]}

@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from django.db.models import Model
+from django.http import HttpRequest
 from django_service_specs.authorization.permission_check import PermissionCheck
 from rest_framework.permissions import BasePermission
 
@@ -58,13 +59,19 @@ class DRFPermissionCheck(PermissionCheck):
     kernel's ``dispatch`` carries the request a run arrived on, or a role
     view built for the operation, that way. Each is the seed, else the
     context's entry, and ``None`` in either place is no value. A carried
-    object is asked as it is, with nothing filled onto it. Where the call
+    view, or DRF ``Request``, is asked as it is, with nothing filled onto it. Where the call
     carries one and not the other, the missing half is the offline pair's,
     built as below, so no class is ever handed ``None`` for a request or a
     view; where it carries neither, the whole offline pair is asked. The
     offline view's ``action`` is the call's context's ``action``, where that
     is a non-empty string, so a class branching on ``view.action`` reads the
-    operation's name; a carried view keeps its own. On
+    operation's name; a carried view keeps its own. A carried Django
+    request that DRF has not wrapped, the request a run arrived on as the
+    kernel's call context holds it, is asked as a DRF ``Request`` around a
+    copy of it, built as the offline pair is: its ``user`` the principal and
+    its query string the declared ``QueryParam`` values the call sent,
+    replacing its own, which is the endpoint's the run arrived on. Asked with
+    no arguments at all, nothing is routed and its own query string stays. On
     drfs' own edge the kernel asks no check, since ``dispatch_spec`` runs
     under the ``Grant`` its view's permission classes produced.
 
@@ -174,17 +181,28 @@ class DRFPermissionCheck(PermissionCheck):
         seeds = {"request": request, "view": view}
         request = carried("request", seeds, call_context)
         view = carried("view", seeds, call_context)
-        if request is None or view is None:
-            offline = self._context(principal, arguments, offline_action(call_context))
-            request = offline.request if request is None else request
+        plain = request if isinstance(request, HttpRequest) else None
+        # The wrap's condition is held by
+        # test_a_carried_django_request_is_wrapped_with_the_routed_query_string,
+        # which fails if a plain request is asked unwrapped.
+        if plain is not None or request is None or view is None:
+            offline = self._context(
+                principal, arguments, offline_action(call_context), http_request=plain
+            )
+            request = offline.request if plain is not None or request is None else request
             view = offline.view if view is None else view
         return request, view
 
     def _context(
-        self, principal: Any, arguments: Mapping[str, Any] | None, action: str | None
+        self,
+        principal: Any,
+        arguments: Mapping[str, Any] | None,
+        action: str | None,
+        *,
+        http_request: HttpRequest | None,
     ) -> OfflineContext:
         if arguments is None:
-            return build_offline_context(principal, action=action)
+            return build_offline_context(principal, action=action, http_request=http_request)
         kwargs = {name: arguments[name] for name in self.route_reads if name in arguments}
         # A declared ``UrlKwarg`` outranks a lookup read of the same name, as the
         # declaration a transport routes onto ``view.kwargs``.
@@ -192,6 +210,7 @@ class DRFPermissionCheck(PermissionCheck):
         return build_offline_context(
             principal,
             action=action,
+            http_request=http_request,
             kwargs=kwargs,
             query_params=_routed(self.query_params, arguments),
         )
