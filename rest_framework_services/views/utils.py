@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.audience.utils import rendered_affordances, with_affordances
+from rest_framework_services.dispatch.utils import fill_call_context
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.unset import UNSET
@@ -42,15 +43,29 @@ def resolve_extra_kwargs(
             ``get_selector_kwargs``. An absent method skips the layer.
     """
     extras: dict[str, Any] = {}
+    # The request's one dict, for every layer. Its hand-off to the two view
+    # hooks is held by test_a_create_hands_every_provider_the_request_s_context,
+    # and to the spec layer, which only a direct caller fills (``dispatch_spec``
+    # runs the spec's own provider on a live view), by
+    # test_the_spec_kwargs_layer_is_handed_the_view_s_dict.
+    context = view_call_context(view, request)
     catch_all = getattr(view, catch_all_hook, None)
     if catch_all is not None:
-        extras.update(_invoke_provider(catch_all, view=view, request=request, extras={}))
+        extras.update(
+            _invoke_provider(catch_all, view=view, request=request, extras={}, call_context=context)
+        )
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            extras.update(_invoke_provider(hook, view=view, request=request, extras={}))
+            extras.update(
+                _invoke_provider(hook, view=view, request=request, extras={}, call_context=context)
+            )
     if spec_kwargs is not None:
-        extras.update(_invoke_provider(spec_kwargs, view=view, request=request, extras={}))
+        extras.update(
+            _invoke_provider(
+                spec_kwargs, view=view, request=request, extras={}, call_context=context
+            )
+        )
     return extras
 
 
@@ -77,18 +92,53 @@ def resolve_input_extras(
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
     collected: dict[str, Any] = {}
+    # As in ``resolve_extra_kwargs``: the hooks' hand-off is held by
+    # test_a_create_hands_every_provider_the_request_s_context, the spec
+    # layer's by test_the_spec_input_data_layer_is_handed_the_view_s_dict.
+    context = view_call_context(view, request)
     catch_all = getattr(view, catch_all_hook, None)
     if catch_all is not None:
-        collected.update(_invoke_provider(catch_all, view=view, request=request, extras=payload))
+        collected.update(
+            _invoke_provider(
+                catch_all, view=view, request=request, extras=payload, call_context=context
+            )
+        )
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            collected.update(_invoke_provider(hook, view=view, request=request, extras=payload))
+            collected.update(
+                _invoke_provider(
+                    hook, view=view, request=request, extras=payload, call_context=context
+                )
+            )
     if spec_input_data is not None:
         collected.update(
-            _invoke_provider(spec_input_data, view=view, request=request, extras=payload)
+            _invoke_provider(
+                spec_input_data, view=view, request=request, extras=payload, call_context=context
+            )
         )
     return collected
+
+
+def view_call_context(view: Any, request: Request) -> dict[str, Any]:
+    """The call's context of the request ``view`` is serving: one dict per request.
+
+    Built on first use with the edge's four standard entries (``request``,
+    ``view``, ``format`` ``None`` and the view's ``action`` or ``None``) and kept
+    on the view, which DRF builds afresh for every request, so a second request
+    is a second dict (test_each_request_is_a_call_of_its_own). A mutation view
+    hands this object to ``dispatch_spec`` as its ``call_context=`` and to
+    ``render_spec_output``, and every view hands it to each provider and hook
+    it invokes itself, so a provider naming ``call_context`` sees one dict
+    across those stages. Kept rather than rebuilt: a dict per caller fails the
+    identity assertions of
+    test_a_create_hands_every_provider_the_request_s_context.
+    """
+    context: dict[str, Any] | None = getattr(view, "_call_context", None)
+    if context is None:
+        context = fill_call_context(None, request=request, view=view)
+        view._call_context = context
+    return context
 
 
 def _invoke_provider(
@@ -97,14 +147,21 @@ def _invoke_provider(
     view: Any,
     request: Request,
     extras: Mapping[str, Any],
+    call_context: dict[str, Any] | None = None,
 ) -> Any:
-    """Call ``fn`` with the subset of ``{view, request, **extras}`` it declares.
+    """Call ``fn`` with the subset of ``{view, request, call_context, **extras}`` it declares.
 
     The single provider-invocation convention: the spec-level ``kwargs`` /
     ``input_data`` / ``*_serializer_context`` callables and the view's ``get_*``
     hooks all come through here, dispatched by ``resolve_callable_kwargs``
     exactly as services and selectors are. Bound view-method hooks simply don't
     declare ``view`` (it is their ``self``), so it is filtered out for them.
+
+    ``call_context`` is the request's dict (``view_call_context``), the one
+    object the edge hands its own stages; every caller in the package passes
+    it, so a provider naming it is answered on every view
+    (tests/test_transport_parity.py's live-view cases). Left out, the pool has
+    no such name.
 
     A returned key whose value is ``UNSET`` is
     **dropped** — the provider is declining to set it rather than setting it to
@@ -113,6 +170,8 @@ def _invoke_provider(
     sentinel means the same thing on every transport.
     """
     pool: dict[str, Any] = {"view": view, "request": request, **extras}
+    if call_context is not None:
+        pool["call_context"] = call_context
     result: Any = fn(**resolve_callable_kwargs(fn, pool))
     return {key: value for key, value in result.items() if value is not UNSET}
 
@@ -143,17 +202,35 @@ def layer_serializer_context(
             ``get_serializer_context``.
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
+    # The request's one dict, the object the edge handed its own stages. Each
+    # layer's hand-off is held: the directional hook's by
+    # test_a_selector_action_hands_its_providers_the_request_s_context, the
+    # action hook's by test_a_selector_viewset_hands_its_providers_the_request_s_context,
+    # and the spec provider's by test_a_selector_view_hands_its_providers_the_request_s_context.
+    call: dict[str, Any] = view_call_context(view, request)
     context: dict[str, Any] = dict(base)
     if direction_hook is not None:
         direction = getattr(view, direction_hook, None)
         if direction is not None:
-            context.update(_invoke_provider(direction, view=view, request=request, extras=payload))
+            context.update(
+                _invoke_provider(
+                    direction, view=view, request=request, extras=payload, call_context=call
+                )
+            )
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            context.update(_invoke_provider(hook, view=view, request=request, extras=payload))
+            context.update(
+                _invoke_provider(
+                    hook, view=view, request=request, extras=payload, call_context=call
+                )
+            )
     if spec_provider is not None:
-        context.update(_invoke_provider(spec_provider, view=view, request=request, extras=payload))
+        context.update(
+            _invoke_provider(
+                spec_provider, view=view, request=request, extras=payload, call_context=call
+            )
+        )
     return context
 
 
