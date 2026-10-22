@@ -86,6 +86,14 @@ class SerializerPresenter(Presenter):
         - **Presence**: ``always_present`` is true where DRF is bound to emit the
           key: a required field, one with a default, and one allowing ``null``. A
           read-only field with neither is dropped when DRF cannot read it.
+          Under ``shaped=True``, no field at any depth is: the spec compiles a
+          shape, an argument such as a ``fields`` selector that the serializer
+          reads off the request, and a key is always present only if it is
+          present under every value the caller may send. A drfs ``QueryParam``
+          declares no choices, so the values are any string, and which keys
+          each one drops is the serializer's to decide when it renders, so the
+          keys present under all of them are none that can be named. The
+          default, ``False``, is the presence above.
         - **Marking**: the ``FieldMarking`` found in the field's ``style``, under
           ``MARKING`` or any other key, and a value under ``MARKING`` that is not
           one refused, as drfs' walk reads it. Nested outputs carry their own.
@@ -104,10 +112,14 @@ class SerializerPresenter(Presenter):
         the serializer's ``.data`` for one value, under the serializer context
         derived from the call's ``PresentationContext``. The ``request`` and
         ``view`` the call registered as pool seeds, read from ``ambient``, are the
-        serializer's own; a call that registered neither gets an offline request
-        whose ``user`` is the principal, so a ``SerializerMethodField`` reading
-        ``self.context["request"].user`` renders for the principal the call ran
-        for. A list result is presented row by row by the kernel's ``present``,
+        serializer's own, and where a seed is absent or ``None``, the entry of
+        that name in ``call_context``; a call that carries neither gets an
+        offline request whose ``user`` is the principal, so a
+        ``SerializerMethodField`` reading ``self.context["request"].user``
+        renders for the principal the call ran for, and whose query string is
+        the call's ``shapes``, so a serializer reading a ``fields`` selector off
+        ``request.query_params`` finds the one the caller sent. A request the
+        call carries is left as it is. A list result is presented row by row by the kernel's ``present``,
         each row with the same context, which is what a ``many=True`` render is.
         Over that, the output half of the view hooks a DRF edge adds to the
         result's context (``output_view_layers``), resolved with the value, then ``serializer_context``, the
@@ -145,6 +157,7 @@ class SerializerPresenter(Presenter):
         field_audiences: Mapping[str, FieldMarking] | None = None,
         serializer_context: Callable[..., Mapping[str, Any]] | None = None,
         value_keyword: str | None = "result",
+        shaped: bool = False,
     ) -> None:
         # Resolved at construction but never instantiated: specs are built at
         # import time, and a ``ModelSerializer`` reads the app registry when its
@@ -166,6 +179,7 @@ class SerializerPresenter(Presenter):
         )
         self.serializer_context = serializer_context
         self.value_keyword = value_keyword
+        self.shaped = shaped
 
     def output(self) -> Output:
         """The serializer's fields as an Output, with ``field_audiences`` layered on. Never queries."""
@@ -178,6 +192,8 @@ class SerializerPresenter(Presenter):
             if isinstance(serializer, serializers.Serializer)
             else Output()
         )
+        if self.shaped:
+            output = _none_always_present(output)
         unknown = sorted(set(self.field_audiences) - set(output.names()))
         if unknown:
             raise ImproperlyConfigured(
@@ -220,6 +236,8 @@ class SerializerPresenter(Presenter):
                 ),
                 provider=self.serializer_context,
                 extras={self.value_keyword: value} if self.value_keyword is not None else None,
+                call_context=context.call_context,
+                shapes=context.shapes,
             ),
         ).data
 
@@ -265,6 +283,31 @@ def _output_field(
         fields=shape.fields,
         items=shape.items,
         items_nullable=shape.items_nullable,
+    )
+
+
+def _none_always_present(output: Output) -> Output:
+    """``output`` with no field at any depth ``always_present``: a shaped spec's output.
+
+    Down both seats a nested output has, an object's ``fields`` and an array's
+    ``items``; each is held by its own field of
+    test_a_shaped_output_marks_no_key_present_at_any_depth: ``one`` (the
+    first) and ``many`` and ``listed`` (the second).
+    """
+    return Output(
+        tuple(
+            dataclasses.replace(
+                field,
+                always_present=False,
+                fields=None if field.fields is None else _none_always_present(field.fields),
+                items=(
+                    _none_always_present(field.items)
+                    if isinstance(field.items, Output)
+                    else field.items
+                ),
+            )
+            for field in output
+        )
     )
 
 

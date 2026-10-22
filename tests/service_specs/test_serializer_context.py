@@ -25,6 +25,7 @@ from django_service_specs.output.presentation_context import PresentationContext
 from django_service_specs.pool.pool_seeds import DEFAULT_POOL_SEEDS
 from rest_framework import serializers
 
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -396,3 +397,75 @@ async def test_an_output_callable_that_queries_runs_off_the_event_loop() -> None
     payload = await apresent(spec, result)
 
     assert payload["context"]["tenant"] == 0
+
+
+# --- the call's context --------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_the_input_callable_may_name_the_call_s_context() -> None:
+    seen: list[dict[str, Any]] = []
+    call_context: dict[str, Any] = {"tenant": "acme"}
+
+    def provider(call_context: Any = None) -> dict[str, Any]:
+        return {"held": call_context}
+
+    spec = _service(input_serializer=_capturing(seen), input_serializer_context=provider)
+
+    dispatch(spec, principal=None, arguments={"title": "hi"}, call_context=call_context)
+
+    assert seen[0]["held"] is call_context
+
+
+@pytest.mark.django_db
+def test_the_output_callable_may_name_the_call_s_context() -> None:
+    # What an earlier stage of the call left in its context, as a service would.
+    call_context: dict[str, Any] = {"tenant": "from-context"}
+
+    def provider(call_context: Any = None) -> dict[str, Any]:
+        return {"tenant": None if call_context is None else call_context["tenant"]}
+
+    spec = _service(output=provider)
+
+    result = dispatch(spec, principal=None, arguments={}, call_context=call_context)
+
+    assert present(spec, result)["context"]["tenant"] == "from-context"
+
+
+@pytest.mark.django_db
+def test_the_input_serializer_is_built_with_the_call_context_s_request() -> None:
+    seen: list[dict[str, Any]] = []
+    request = SimpleNamespace(user=None)
+    spec = _service(input_serializer=_capturing(seen))
+
+    dispatch(
+        spec,
+        principal=None,
+        arguments={"title": "hi"},
+        call_context={"request": request, "view": None, "format": None},
+    )
+
+    assert seen[0]["request"] is request
+    # The view the context left out stays out, beside the request it carried.
+    assert seen[0]["view"] is None
+
+
+@pytest.mark.django_db
+def test_a_description_without_the_call_s_context_leaves_a_callable_naming_it_to_validation() -> (
+    None
+):
+    seen: list[dict[str, Any]] = []
+    asked: list[Any] = []
+
+    def provider(call_context: Any) -> dict[str, Any]:
+        asked.append(call_context)
+        return {"tenant": "acme"}
+
+    spec = _service(input_serializer=_capturing(seen), input_serializer_context=provider)
+
+    dispatch_spec(spec, user=None, params={"title": "hi"})
+
+    # Asked once, by the serializer that validates, with the call's own dict.
+    assert len(asked) == 1
+    assert isinstance(asked[0], dict)
+    assert seen[0]["tenant"] == "acme"

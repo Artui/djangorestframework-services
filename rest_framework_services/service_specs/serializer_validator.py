@@ -80,8 +80,10 @@ class SerializerValidator(Validator):
     - **under the serializer context DRF builds on HTTP**, ``request``,
       ``format`` and ``view``. The ``request`` and ``view`` the call
       registered as pool seeds are the serializer's own, read from
-      ``ValidationContext.ambient`` as the kernel resolved them. A call that
-      registered neither gets an offline request whose ``user`` is the
+      ``ValidationContext.ambient`` as the kernel resolved them, and where a
+      seed is absent or ``None``, the entry of that name in
+      ``ValidationContext.call_context``. A call that carries
+      neither gets an offline request whose ``user`` is the
       principal and whose ``data`` is the arguments, built by
       [`build_offline_context`][rest_framework_services.service_specs.build_offline_context.build_offline_context],
       so a ``CurrentUserDefault`` reads the principal and a field or a
@@ -94,7 +96,8 @@ class SerializerValidator(Validator):
       it layers over (see
       ``serializer_context`` in ``service_specs/utils.py``).
       The callable declares what it reads from the call's pool:
-      ``request``, ``view``, ``user``, a registered seed, or an argument. It is
+      ``request``, ``view``, ``user``, ``call_context``, a registered seed, or
+      an argument. It is
       asked once per call, a ``many`` call's included, except where the call
       builds the serializer twice, for a body the server puts a value into or
       a row a target lookup resolves, and what the callable is handed differs
@@ -482,6 +485,7 @@ class SerializerValidator(Validator):
             arguments,
             view_layers=input_view_layers(),
             provider=self.serializer_context,
+            call_context=context.call_context,
         )
 
 
