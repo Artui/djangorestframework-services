@@ -128,6 +128,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before: a view handing the row it resolved needs no lookup key, and a
   missing argument is refused at the stage it was.
 
+### Fixed
+
+- **A selector spec's typed `kwargs` provider answering a name its
+  `filter_set` reads, and one of its callables marks `NotClientInput`, no
+  longer drops the caller's filter value.** The provider's value reaches the
+  parameter and the caller's still filters, through `dispatch_spec`,
+  `adispatch_spec`, a live view and `dispatch(kernel_spec(spec), ...)`, as in
+  0.57.0; 0.58.0 filtered by nothing. Through `kernel_spec(spec)`, such a
+  provider declared in a module with postponed annotations now reads as typed,
+  so a read it alone fills is no longer asked of the caller. Both hold for a
+  target lookup's provider as well as the spec's own.
+
 ## [0.58.0] — 2026-10-16
 
 ### Upgrade notes
