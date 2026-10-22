@@ -246,6 +246,7 @@ def _service(
         # ``can_present_nothing`` reads the compiled flag
         # (test_the_schema_the_kind_and_the_predicate_agree).
         allow_none=spec.allow_none and not _lists_its_return(spec),
+        returns_many=_returns_many(spec),
         affordances=spec.affordances,
         atomic=spec.atomic,
         idempotent=spec.idempotent,
@@ -276,6 +277,28 @@ def _lists_its_return(spec: Any) -> bool:
         output is not None
         and output.kind is SelectorKind.LIST
         and (output.selector is None or spec.many)
+    )
+
+
+def _returns_many(spec: Any) -> bool:
+    """Whether ``spec``'s service returns the rows its output presents: the kernel's ``returns_many``.
+
+    A ``LIST`` output with no re-read, so the kernel's own ``dispatch`` presents
+    the return row by row and its output schema is an array of the row
+    (test_the_kernel_s_own_dispatch_answers_the_rows). Not ``_lists_its_return``,
+    which is true of a ``many`` spec too, and the kernel refuses
+    ``returns_many`` beside ``many``. One arc to coverage, so each conjunct is
+    held by its case of
+    test_only_a_list_output_with_no_re_read_and_no_many_returns_many:
+    ``no-output`` without the first, ``retrieve-output`` without the second,
+    ``list-re-read`` without the third and ``many`` without the fourth.
+    """
+    output = spec.output_selector_spec
+    return (
+        output is not None
+        and output.kind is SelectorKind.LIST
+        and output.selector is None
+        and not spec.many
     )
 
 
