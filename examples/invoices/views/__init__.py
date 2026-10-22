@@ -83,6 +83,26 @@ PAYMENT_TERMS_SPEC = ServiceSpec(
 )
 
 
+def operation_from_context(*, call_context: dict[str, Any]) -> dict[str, str]:
+    """A ``kwargs`` provider naming ``call_context`` is handed the call's own dict.
+
+    ``action`` is one of the four entries the edge fills in; the name a view or
+    a transport gave the operation is what the service records. Routed, that is
+    the viewset's action name; off HTTP, the name the caller's view carries.
+    """
+    return {"operation": call_context["action"] or "unnamed"}
+
+
+# Routed as the viewset's ``record`` action and run off HTTP by
+# ``dispatch_spec``: one spec, and the operation's name comes from whichever
+# call carries it.
+RECORD_OPERATION_SPEC = ServiceSpec(
+    service=record_operation,
+    kwargs=operation_from_context,
+    output_selector_spec=_invoice_response_spec(),
+)
+
+
 class InvoiceViewSet(ServiceViewSet):
     queryset = Invoice.objects.all()
 
@@ -144,27 +164,21 @@ class InvoiceViewSet(ServiceViewSet):
     def terms(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Record the days an invoice stays open; the spec's registry bounds them."""
 
+    @service_action(
+        RECORD_OPERATION_SPEC,
+        detail=True,
+        methods=["post"],
+    )
+    def record(self, request, pk=None):  # type: ignore[no-untyped-def]
+        """Note on the invoice the operation that touched it: this action's name."""
+
 
 # -----------------------------------------------------------------------
 # Specs for a caller that is not an HTTP request. None is routed: each is run
 # by ``dispatch_spec`` or by the kernel's own ``dispatch``.
+# ``RECORD_OPERATION_SPEC``, above the viewset, is run off HTTP too.
 # -----------------------------------------------------------------------
 
-
-def operation_from_context(*, call_context: dict[str, Any]) -> dict[str, str]:
-    """A ``kwargs`` provider naming ``call_context`` is handed the call's own dict.
-
-    ``action`` is one of the four entries the edge fills in; the name a view or
-    a transport gave the operation is what the service records.
-    """
-    return {"operation": call_context["action"] or "unnamed"}
-
-
-RECORD_OPERATION_SPEC = ServiceSpec(
-    service=record_operation,
-    kwargs=operation_from_context,
-    output_selector_spec=_invoice_response_spec(),
-)
 
 # ``fields`` is declared and no callable of the call names it: ``list_invoices``
 # takes only ``status``. So the kernel keeps it out of ``reads`` (what the
