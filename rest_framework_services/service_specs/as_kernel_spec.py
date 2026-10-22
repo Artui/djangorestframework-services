@@ -121,10 +121,11 @@ def as_kernel_spec(
       (``_reflected``). A row handed in as ``dispatch(target=...)`` does not
       excuse its lookup's key on this compile: the kernel checks the arguments
       before it reads the target, so a caller handing one still sends the key.
-      The DRF edge compiles its per-request variants without this rule
-      (``as_the_edge_compiles``), so a view handing the row it resolved, and
-      each refusal stage the edge documents, answer as they always did. A misplaced
-      marker is refused here, so at registration. Each declared ``UrlKwarg``
+      The DRF edge's per-request variants (``kernel_spec_variant``) leave
+      optional exactly the reads this rule requires
+      (``required_for_having_no_default``), so a view handing the row it
+      resolved, and each refusal stage the edge documents, answer as they
+      always did. A misplaced marker is refused here, so at registration. Each declared ``UrlKwarg``
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
       winning over a reflected one of its name, and a read unless it is a
       shape (below); one the target lookup reads joins the lookup's reads.
@@ -1524,4 +1525,4 @@ def _positional(extend: Callable[..., QuerySet[Any]]) -> Callable[..., QuerySet[
     return extend_queryset
 
 
-__all__ = ["as_kernel_spec", "required_for_having_no_default"]
+__all__ = ["as_kernel_spec"]

@@ -52,6 +52,14 @@ def kernel_spec_variant(
     never recompiles and a ``Grant`` minted for a variant covers it on the
     next call too.
 
+    Each other combination is the edge's, and it leaves optional every read
+    ``kernel_spec(spec)`` requires only for having no default: the edge fills
+    such a parameter from a row a view hands in, and refuses a missing one at
+    the stage it documents, the target lookup's or the service's own
+    (test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
+    ``InputRequired``, a required ``TypedDict`` key and a declared read stay
+    required.
+
     - ``partial``: the per-request flag a ``PATCH`` sets, compiled by
       [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec];
       ``None`` reads the spec's own.
