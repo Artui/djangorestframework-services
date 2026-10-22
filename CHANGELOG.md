@@ -115,9 +115,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A service spec whose output selector is a `LIST` with no `selector`, and
   which is not `many`, compiles to the kernel's `returns_many=True`.** The
   kernel's own `dispatch` answers it as a list, and its output schema is an
-  array of the row. drfs' edge checks such a return by the declaration, not by
-  the kind the kernel reports, so a mapping, `str`, `bytes`, a non-iterable or
-  `None` is refused with `ImproperlyConfigured` however the spec is compiled.
+  array of the row. drfs' edge, `dispatch_spec` and the views, checks such a
+  return by the declaration, not by the kind the kernel reports, so a mapping,
+  `str`, `bytes`, a non-iterable or `None` is refused there with
+  `ImproperlyConfigured`. The kernel's own `dispatch` does not refuse a mapping
+  or a string, and presents it row by row.
+- **`kernel_spec_variant(spec, ...)` is no longer `kernel_spec(spec)` itself
+  for a spec with a required reflected read to relax,** since the variant drfs'
+  edge dispatches relaxes it. A variant with nothing to relax and nothing else
+  to change is still the compiled spec.
 
 - **A keyword parameter with no default on a selector, a target lookup, or a
   spread service and its preconditions compiles as required** on

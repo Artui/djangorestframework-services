@@ -698,11 +698,12 @@ valid only beside a `collection_selector_spec`, the first row renders the
 service's return as a list, row by row, and the fourth does not apply: a list is
 never `None`, so a `None` return is refused as the author's error, as is any
 return that is no set of rows. Off HTTP, `dispatch_spec` reports the same list
-as `kind="list"`. The edge checks the return by the declaration, not by the kind
-the kernel reports: a mapping, a `str`, `bytes`, a non-iterable or `None` is
-refused with `ImproperlyConfigured` however the spec is compiled, `returns_many`
-included, rather than being presented row by row because the kernel called it a
-list. A `many` spec is not this case: its return is
+as `kind="list"`. drfs' edge, `dispatch_spec` and the views, checks the return
+by the declaration, not by the kind the kernel reports: a mapping, a `str`,
+`bytes`, a non-iterable or `None` is refused with `ImproperlyConfigured`, rather
+than being presented row by row because the kernel called it a list. The
+kernel's own `dispatch` of the compiled spec does not check it, and presents a
+mapping or a string row by row. A `many` spec is not this case: its return is
 already its rows, and it does not compile to `returns_many` (the kernel refuses
 the two together).
 
