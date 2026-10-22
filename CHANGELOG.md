@@ -44,13 +44,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dispatch` puts the request a run arrived on or a view built for the
   operation. `None` in either place counts as no value. A carried Django
   `HttpRequest` is wrapped as a DRF `Request` around a copy of it, as
-  `build_offline_context(http_request=)` wraps one: its `user` is the principal,
-  and its query string is the call's read-shaping arguments, replacing the
-  arrived-on endpoint's own. A carried DRF `Request` and a carried view are used
-  as they are. Only when neither is carried is an offline request and view built
-  for the principal. Where the permission check is handed one and not the other,
-  the other half is the offline pair's, so a DRF permission class is never
-  handed `None`.
+  `build_offline_context(http_request=)` wraps one, and its `user` is the
+  principal. The permission check replaces its query string with every
+  declared `QueryParam` the call sent, as it does for an offline request, and
+  leaves the arrived-on endpoint's own when asked with no arguments. The
+  serializer context replaces it with the call's shapes. A carried DRF
+  `Request` and a carried view are used as they are. Only when neither is
+  carried is an offline request and view built for the principal. Where the
+  permission check is handed one and not the other, the other half is the
+  offline pair's, so a DRF permission class is never handed `None`.
 - **An offline view's `action` is the call context's `action`,** where that is a
   non-empty string, so a permission class or serializer branching on
   `view.action` reads the operation's name off HTTP rather than `None`. A view
