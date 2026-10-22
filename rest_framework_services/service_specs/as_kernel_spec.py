@@ -867,6 +867,8 @@ def _presenter(
         field_audiences=audiences,
         serializer_context=context,
         value_keyword=value_keyword,
+        # test_the_compiled_output_says_no_key_is_present_under_a_shape
+        shaped=shaped,
     )
 
 

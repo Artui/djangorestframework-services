@@ -335,3 +335,27 @@ def test_a_url_kwarg_is_never_a_shape() -> None:
 
     assert not compiled.shapes
     assert compiled.reads.get("project_pk") == Parameter("project_pk", "string")
+
+
+def _rendering(build: Callable[..., Any], *, reads: list[Any]) -> Any:
+    if build is _service:
+        return _service(
+            reads=reads,
+            output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Title),
+        )
+    return _selector(reads=reads, output_serializer=_Title)
+
+
+@pytest.mark.parametrize("build", [_service, _selector], ids=["service-spec", "selector-spec"])
+@pytest.mark.parametrize(
+    ("reads", "present"), [([_FIELDS], False), ([], True)], ids=["shaped", "unshaped"]
+)
+def test_the_compiled_output_says_no_key_is_present_under_a_shape(
+    build: Callable[..., Any], reads: list[Any], present: bool
+) -> None:
+    """A caller's shape may drop any key the serializer renders, so a compiled
+    output under one promises none; with no shape it says what DRF emits."""
+    output = kernel_spec(_rendering(build, reads=reads)).output()
+
+    assert output is not None
+    assert [field.always_present for field in output] == [present]
