@@ -1388,8 +1388,8 @@ def _reflected(
     (test_a_parameter_with_no_default_is_required), and one with a default is
     not (test_a_parameter_with_a_default_stays_optional). A server's value still
     reaches it - a route capture, a view hook's, a typed provider's, which the
-    kernel relaxes, or a seed's, which is no read at all
-    (``TestEachServerFillerAnswers``). A row handed in as ``target=`` does not:
+    kernel relaxes, or a registered seed's, which the kernel fills because
+    the read is marked ``reflected`` (``TestEachServerFillerAnswers``). A row handed in as ``target=`` does not:
     the kernel checks the arguments before it reads the target, so a caller
     handing one on the kernel's route still sends the lookup's key
     (test_the_kernel_s_route_still_asks_for_the_key). drfs' edge answers it
@@ -1471,7 +1471,7 @@ def _parameter(
         nullable=nullable,
         # Every parameter built here is read off a signature, which is what the
         # mark says: the kernel fills a registered seed's name in it on every
-        # compile, so a selector's ``tenant`` is the project's seed whether the
+        # dispatch, so a selector's ``tenant`` is the project's seed whether the
         # DRF edge or any other transport dispatches it
         # (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed). A
         # declared ``UrlKwarg`` or ``QueryParam`` is built elsewhere and stays

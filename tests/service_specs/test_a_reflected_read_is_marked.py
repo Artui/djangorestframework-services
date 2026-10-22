@@ -78,7 +78,7 @@ def test_a_spread_service_s_parameters_are_marked() -> None:
 
 @pytest.mark.parametrize("declared", [QueryParam, UrlKwarg], ids=["query-param", "url-kwarg"])
 def test_a_declared_read_is_not_marked_and_replaces_the_reflected_one(declared: Any) -> None:
-    """Marking every ``_parameter`` result fails this: the declared read would carry the mark."""
+    """Marking the Parameter ``_declared`` builds fails this: the declared read would carry the mark."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=_selector,

@@ -275,3 +275,31 @@ def test_a_spread_service_naming_a_seed_refuses_a_value_the_caller_sent_as_befor
             unknown_arguments=policy,
             argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
         )
+
+
+@_POLICIES
+def test_an_open_spread_service_s_precondition_reads_the_seed(policy: UnknownArguments) -> None:
+    """The precondition's ``tenant`` beside a bare ``**kwargs`` is marked, so the seed fills it."""
+    seen: dict[str, Any] = {}
+
+    def precondition(*, tenant: str) -> None:
+        seen["precondition"] = tenant
+
+    def open_service(**_: Any) -> str:
+        return "ran"
+
+    spec = ServiceSpec(
+        service=open_service, preconditions=[precondition], permission_classes=[], atomic=False
+    )
+
+    result = dispatch_spec(
+        spec,
+        user=None,
+        pool_seeds=_SEEDS,
+        params={},
+        unknown_arguments=policy,
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+    )
+
+    assert result.value == "ran"
+    assert seen == {"precondition": "acme"}

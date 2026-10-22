@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compiled read now compares unequal to a hand-built `Parameter` without
   `reflected=True`, so a test asserting `kernel_spec(spec).reads == (...)`
   needs the flag.
-- The DRF views no longer compile a seed's name out of the reads for each
-  call; the kernel fills it. HTTP answers are unchanged. `as_kernel_spec(seeded=)`
+- `dispatch_spec` and `adispatch_spec` no longer compile a seed's name out of
+  the reads for each call; the kernel fills it. HTTP answers are unchanged. `as_kernel_spec(seeded=)`
   is unchanged.
 - Requires `django-service-specs>=0.15.0`, whose dispatch fills a reflected
   read from a seed and lets an input serializer field named like a registered
