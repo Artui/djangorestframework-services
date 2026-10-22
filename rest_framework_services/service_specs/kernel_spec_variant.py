@@ -9,12 +9,16 @@ import weakref
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from django_service_specs.types.selector_kind import SelectorKind
 
-from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
+from rest_framework_services.service_specs.as_kernel_spec import (
+    as_kernel_spec,
+    required_for_having_no_default,
+)
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import author_values
 
@@ -47,6 +51,14 @@ def kernel_spec_variant(
     compiled once per source object and kept while it lives, so a request
     never recompiles and a ``Grant`` minted for a variant covers it on the
     next call too.
+
+    Each other combination is the edge's, and it leaves optional every read
+    ``kernel_spec(spec)`` requires only for having no default: the edge fills
+    such a parameter from a row a view hands in, and refuses a missing one at
+    the stage it documents, the target lookup's or the service's own
+    (test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
+    ``InputRequired``, a required ``TypedDict`` key and a declared read stay
+    required.
 
     - ``partial``: the per-request flag a ``PATCH`` sets, compiled by
       [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec];
@@ -134,7 +146,7 @@ def _compile(
         if partial is not None or spread or seeded
         else kernel_spec(spec)
     )
-    changes: dict[str, Any] = {}
+    changes = _relaxed(spec, compiled)
     if unguarded:
         changes["permissions"] = None
     if not server_input:
@@ -185,6 +197,60 @@ def _compile(
     ):
         changes["instance_selector_spec"] = _STAND_IN
     return dataclasses.replace(compiled, **changes) if changes else compiled
+
+
+def _relaxed(spec: Any, compiled: Any) -> dict[str, Any]:
+    """The changes that leave optional each read ``compiled`` requires for having no default.
+
+    ``kernel_spec(spec)`` requires such a parameter, as the callable raises
+    without it. The edge answers it as it always did instead: a row a view
+    hands in fills the target lookup's key
+    (test_a_row_handed_is_described_from_the_start,
+    test_a_missing_row_under_a_list_declaration_stays_not_found,
+    test_the_check_reads_the_table_not_a_prefetched_cache), and a missing one
+    is refused at the stage it documents, the marked name's, the selector's or
+    the lookup's (test_a_marked_name_is_asked_for_before_the_selector_s_own,
+    test_a_spread_service_asks_for_its_lookup_s_key_last). Exactly those
+    reads, named by ``required_for_having_no_default``, each seat held by its
+    case of test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for:
+    the spec's own reads by ``selector`` and ``spread-service``, the target
+    lookup's by ``instance-lookup``, and the seat it sits in by
+    ``collection-lookup``. A seat with no required read to relax is left as
+    compiled, so a variant changing nothing else is ``kernel_spec(spec)``
+    itself (test_a_variant_with_nothing_to_relax_is_the_compiled_spec: its
+    ``already-optional`` case holds the ``required`` check).
+    """
+    own, lookup = required_for_having_no_default(spec)
+    changes: dict[str, Any] = {}
+    reads = _optional(compiled.reads, own)
+    if reads is not None:
+        changes["reads"] = reads
+    # A selector spec has no target lookup, and ``required_for_having_no_default``
+    # names none for it.
+    target = compiled.target_selector_spec() if lookup else None
+    # One arc to coverage: every selector spec's variant fails without the
+    # first conjunct, and the ``lookup-already-optional`` case of
+    # test_a_variant_with_nothing_to_relax_is_the_compiled_spec without the second.
+    if target is not None and (relaxed := _optional(target.reads, lookup)) is not None:
+        seat = (
+            "instance_selector_spec"
+            if compiled.instance_selector_spec is target
+            else "collection_selector_spec"
+        )
+        changes[seat] = dataclasses.replace(target, reads=relaxed)
+    return changes
+
+
+def _optional(reads: Parameters, names: frozenset[str]) -> Parameters | None:
+    """``reads`` with each required one ``names`` names made optional, or ``None`` where none is."""
+    if not any(parameter.required and parameter.name in names for parameter in reads):
+        return None
+    return Parameters(
+        tuple(
+            dataclasses.replace(parameter, required=False) if parameter.name in names else parameter
+            for parameter in reads
+        )
+    )
 
 
 def _handed_by_the_edge() -> Any:

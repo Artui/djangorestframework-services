@@ -35,6 +35,10 @@ def _lookup(*, pk: int) -> Any:
     return Post.objects.filter(pk=pk)
 
 
+def _first() -> Any:
+    return Post.objects.all()[:1]
+
+
 def _service(compiled: Any) -> KernelServiceSpec:
     assert isinstance(compiled, KernelServiceSpec)
     return compiled
@@ -119,7 +123,9 @@ def test_a_declared_lookup_is_kept() -> None:
 
 
 def test_a_selector_spec_takes_no_stand_in() -> None:
-    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_lookup)
+    # A selector asking for no argument, so the variant has no read to relax
+    # either, and changes nothing.
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_first)
 
     compiled = kernel_spec_variant(spec, target=True)
 
