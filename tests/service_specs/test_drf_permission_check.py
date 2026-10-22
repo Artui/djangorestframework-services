@@ -8,16 +8,19 @@ handed the arguments over.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django_service_specs.authorization.not_permitted import NotPermitted as KernelNotPermitted
 from django_service_specs.dispatch.authorize import authorize
+from django_service_specs.dispatch.authorize_target import authorize_target
 from django_service_specs.dispatch.dispatch import dispatch
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
+from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.not_permitted import NotPermitted
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -268,3 +271,168 @@ class TestTheScopeCheck:
         result = dispatch(spec, principal=AnonymousUser(), arguments={})
 
         assert result.value == 1
+
+
+_ASKED: list[tuple[Any, Any]] = []
+
+
+class _Pairs(BasePermission):
+    """Records the request and view each question was asked against."""
+
+    def has_permission(self, request: Any, view: Any) -> bool:
+        _ASKED.append((request, view))
+        return True
+
+    def has_object_permission(self, request: Any, view: Any, obj: Any) -> bool:
+        _ASKED.append((request, view))
+        return True
+
+
+def _asked() -> tuple[Any, Any]:
+    (pair,) = _ASKED
+    _ASKED.clear()
+    return pair
+
+
+def _real_pair(name: str) -> tuple[Any, Any]:
+    """A request and a view standing for ones a transport carries, told apart by ``action``."""
+    request = build_offline_context(AnonymousUser()).request
+    return request, SimpleNamespace(request=request, kwargs={}, action=name)
+
+
+class TestTheCallsRequestAndView:
+    """The request and view a call carries, as a seed and then in its context, before an offline pair."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_asked(self) -> None:
+        _ASKED.clear()
+
+    def _spec(self) -> ServiceSpec[Any, Any, Any]:
+        return ServiceSpec(service=_create, permission_classes=[_Pairs])
+
+    def test_the_seeds_are_the_pair_asked(self) -> None:
+        request, view = _real_pair("seeded")
+
+        authorize(self._spec(), AnonymousUser(), seeds={"request": request, "view": view})
+
+        assert _asked() == (request, view)
+
+    def test_the_call_context_s_pair_is_asked_when_no_seed_carries_one(self) -> None:
+        request, view = _real_pair("in-context")
+
+        authorize(self._spec(), AnonymousUser(), call_context={"request": request, "view": view})
+
+        assert _asked() == (request, view)
+
+    def test_a_seed_outranks_the_call_context(self) -> None:
+        seeded, seeded_view = _real_pair("seeded")
+        held, held_view = _real_pair("in-context")
+
+        authorize(
+            self._spec(),
+            AnonymousUser(),
+            seeds={"request": seeded, "view": seeded_view},
+            call_context={"request": held, "view": held_view},
+        )
+
+        assert _asked() == (seeded, seeded_view)
+
+    def test_a_none_in_the_call_context_falls_through_to_an_offline_pair(self) -> None:
+        principal = AnonymousUser()
+        spec = ServiceSpec(
+            service=_create, permission_classes=[_Pairs], reads=[UrlKwarg("project_pk")]
+        )
+
+        authorize(
+            spec,
+            principal,
+            arguments={"project_pk": "4"},
+            call_context={"request": None, "view": None, "format": None},
+        )
+
+        request, view = _asked()
+        assert request.user is principal
+        assert view.kwargs == {"project_pk": "4"}
+
+    def test_a_view_alone_is_asked_beside_an_offline_request_for_the_principal(self) -> None:
+        principal = AnonymousUser()
+        _, view = _real_pair("role")
+
+        authorize(self._spec(), principal, call_context={"request": None, "view": view})
+
+        request, asked_view = _asked()
+        assert asked_view is view
+        assert request.user is principal
+
+    def test_a_request_alone_is_asked_beside_an_offline_view_carrying_the_route(self) -> None:
+        request, _ = _real_pair("arrived-on")
+        spec = ServiceSpec(
+            service=_create, permission_classes=[_Pairs], reads=[UrlKwarg("project_pk")]
+        )
+
+        authorize(spec, AnonymousUser(), arguments={"project_pk": "4"}, seeds={"request": request})
+
+        asked_request, view = _asked()
+        assert asked_request is request
+        assert view.kwargs == {"project_pk": "4"}
+
+    @pytest.mark.django_db
+    def test_the_object_check_is_asked_against_the_call_s_pair(self) -> None:
+        post = Post.objects.create(title="t")
+        request, view = _real_pair("in-context")
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_lookup, permission_classes=[_Pairs]
+        )
+        grant = authorize(spec, AnonymousUser(), arguments={"pk": post.pk})
+        _ASKED.clear()
+
+        authorize_target(
+            spec,
+            AnonymousUser(),
+            post,
+            grant=grant,
+            arguments={"pk": post.pk},
+            call_context={"request": request, "view": view},
+        )
+
+        assert _asked() == (request, view)
+
+    def test_the_offline_view_s_action_is_the_call_context_s(self) -> None:
+        authorize(self._spec(), AnonymousUser(), call_context={"view": None, "action": "publish"})
+
+        _, view = _asked()
+        assert view.action == "publish"
+
+    def test_an_offline_view_beside_a_carried_request_takes_the_action_too(self) -> None:
+        request, _ = _real_pair("arrived-on")
+
+        authorize(
+            self._spec(),
+            AnonymousUser(),
+            seeds={"request": request},
+            call_context={"action": "publish"},
+        )
+
+        asked_request, view = _asked()
+        assert asked_request is request
+        assert view.action == "publish"
+
+    @pytest.mark.parametrize("action", ["", 5], ids=["empty", "not-a-string"])
+    def test_an_action_that_is_no_name_leaves_the_offline_view_s_as_it_was(
+        self, action: Any
+    ) -> None:
+        authorize(self._spec(), AnonymousUser(), call_context={"action": action})
+
+        _, view = _asked()
+        assert view.action is None
+
+    def test_a_carried_view_s_action_is_never_overwritten(self) -> None:
+        request, view = _real_pair("role")
+
+        authorize(
+            self._spec(),
+            AnonymousUser(),
+            call_context={"request": request, "view": view, "action": "publish"},
+        )
+
+        assert _asked()[1].action == "role"
