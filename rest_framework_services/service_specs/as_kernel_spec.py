@@ -114,7 +114,16 @@ def as_kernel_spec(
       [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
       reads them: named parameters and the keys of an ``Unpack``-ed
       ``TypedDict``, with ``InputRequired`` read as required and a
-      ``NotClientInput`` key on any callable of the call left out. A misplaced
+      ``NotClientInput`` key on any callable of the call left out. A named
+      parameter with no default is required too, as the callable raises
+      ``TypeError`` without it, unless a ``kwargs`` provider that says nothing
+      of its keys may fill it or the callable is a wrapper that fills its own
+      (``_reflected``). A row handed in as ``dispatch(target=...)`` does not
+      excuse its lookup's key on this compile: the kernel checks the arguments
+      before it reads the target, so a caller handing one still sends the key.
+      The DRF edge compiles its per-request variants without this rule
+      (``as_the_edge_compiles``), so a view handing the row it resolved, and
+      each refusal stage the edge documents, answer as they always did. A misplaced
       marker is refused here, so at registration. Each declared ``UrlKwarg``
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
       winning over a reflected one of its name, and a read unless it is a
@@ -185,7 +194,15 @@ def as_kernel_spec(
     """
     if isinstance(spec, AffordanceDeclarer):
         return _service(spec, partial=partial, spread=spread, seeded=seeded)
-    return _selector(spec, role=None, hidden=frozenset(), declared=(), seeded=seeded, shaped=False)
+    return _selector(
+        spec,
+        role=None,
+        hidden=frozenset(),
+        declared=(),
+        seeded=seeded,
+        shaped=False,
+        open_ended=_filled_by_an_untyped_provider(spec),
+    )
 
 
 def _service(
@@ -204,15 +221,22 @@ def _service(
     _refuse_hidden_reads(
         spec.reads, [spec.service, *(spec.preconditions or ())], label="ServiceSpec"
     )
-    instance = _nested(spec, "instance", hidden, declared, seeded)
-    collection = _nested(spec, "collection", hidden, declared, seeded)
+    # One answer for every reflected parameter of the call, the target lookup's
+    # included, as ``spec_to_json_schema`` gives one without ``supplied=``. Each
+    # seat it reaches is held by its test of
+    # ``TestAnUntypedProviderKeepsEveryParameterOptional``: the lookups by
+    # test_a_service_spec_s_provider_keeps_its_target_lookup_s_parameter_optional,
+    # the spread signature by test_a_spread_service_s_parameter.
+    open_ended = _filled_by_an_untyped_provider(spec)
+    instance = _nested(spec, "instance", hidden, declared, seeded, open_ended)
+    collection = _nested(spec, "collection", hidden, declared, seeded, open_ended)
     target = instance or collection
     # In the lookup's order: the route a permission class reads is filled in it.
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
         # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
-        _spread_signature(spec, hidden=hidden | seeded)
+        _spread_signature(spec, hidden=hidden | seeded, open_ended=open_ended)
         if _takes_its_signature(spec, spread)
         else [],
         [parameter for parameter in declared if parameter.name not in taken],
@@ -330,6 +354,7 @@ def _selector(
     audiences: Mapping[str, FieldMarking] | None = None,
     seeded: frozenset[str] = frozenset(),
     shaped: bool,
+    open_ended: bool,
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -370,7 +395,7 @@ def _selector(
     if role != "output":
         # A seed of the call fills its name, so it is no argument
         # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
-        reflected = _reflected(spec.selector, hidden=hidden | seeded)
+        reflected = _reflected(spec.selector, hidden=hidden | seeded, open_ended=open_ended)
         if role is not None:
             # A target lookup's own ``reads`` are declared as the spec's are, so
             # each is its parameter with the type it declares, and a string
@@ -476,7 +501,7 @@ def _as_it_runs(fn: Any) -> Any:
     return left_to_the_callable(fn) if fills_its_own(fn) else fn
 
 
-def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
+def _spread_signature(spec: Any, *, hidden: frozenset[str], open_ended: bool) -> list[Parameter]:
     """A spread service's parameters, and its preconditions' beside a bare ``**kwargs``.
 
     A bare ``**kwargs`` leaves a spread service's surface open, so a
@@ -494,12 +519,12 @@ def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
     caller skips the target lookup's reads
     (test_a_read_of_the_target_lookup_stays_the_lookup_s).
     """
-    reflected = _reflected(spec.service, hidden=hidden)
+    reflected = _reflected(spec.service, hidden=hidden, open_ended=open_ended)
     if not _takes_any_name(spec.service):
         return reflected
     names = set(_names(reflected))
     for precondition in spec.preconditions or ():
-        for parameter in _reflected(precondition, hidden=hidden):
+        for parameter in _reflected(precondition, hidden=hidden, open_ended=open_ended):
             if parameter.name not in names:
                 names.add(parameter.name)
                 reflected.append(parameter)
@@ -538,7 +563,8 @@ def lookup_keys_the_service_names(spec: Any, lookup_reads: Iterable[str]) -> fro
     so a name no field takes is no caller's to send
     (test_a_serializer_with_no_field_for_the_key_leaves_it_to_the_author).
     """
-    named = _names(_reflected(spec.service, hidden=frozenset()))
+    # Names alone, so whether one is required is not asked.
+    named = _names(_reflected(spec.service, hidden=frozenset(), open_ended=True))
     if spec.input_serializer is not None:
         named &= writable_input_names(spec)
     return frozenset(lookup_reads) & named
@@ -711,6 +737,11 @@ def _recording_beside_its_filter(provider: Any, spec: Any, names: frozenset[str]
         return answered
 
     cast(Any, recording).__signature__ = inspect.signature(provider)
+    # The kernel reads the keys a typed provider fills off its return
+    # annotation, resolved in the globals of what ``__wrapped__`` names, so a
+    # read the provider fills stays relaxed rather than asked of the caller
+    # (test_a_target_lookup_s_typed_provider, its ``beside-a-filter`` cases).
+    cast(Any, recording).__wrapped__ = provider
     recording.__annotations__ = dict(getattr(provider, "__annotations__", {}))
     recording.__name__ = getattr(provider, "__name__", "kwargs")
     recording.__qualname__ = getattr(provider, "__qualname__", recording.__name__)
@@ -753,6 +784,7 @@ def _nested(
     hidden: frozenset[str],
     declared: Sequence[Parameter],
     seeded: frozenset[str],
+    open_ended: bool,
 ) -> KernelSelectorSpec | None:
     nested = getattr(spec, f"{role}_selector_spec")
     # An instance lookup with no ``selector`` is no lookup, as drfs always read
@@ -763,7 +795,13 @@ def _nested(
     if nested is None or (role == "instance" and nested.selector is None):
         return None
     return _selector(
-        nested, role=role, hidden=hidden, declared=declared, seeded=seeded, shaped=False
+        nested,
+        role=role,
+        hidden=hidden,
+        declared=declared,
+        seeded=seeded,
+        shaped=False,
+        open_ended=open_ended,
     )
 
 
@@ -792,6 +830,8 @@ def _output(
             declared=(),
             audiences=audiences,
             shaped=shaped,
+            # An output selector reflects nothing: it re-reads the service's result.
+            open_ended=False,
         )
         # The kernel binds an output ``filter_set`` to the re-read's pool, which
         # carries the service's return and nothing of the call. So where the
@@ -993,7 +1033,8 @@ def _shapes(
     for fn in (*callables, *(provider for provider in providers if provider is not None)):
         if _takes_any_name(fn):
             return declared, Parameters()
-        named |= _names(_reflected(fn, hidden=frozenset()))
+        # Names alone, so whether one is required is not asked.
+        named |= _names(_reflected(fn, hidden=frozenset(), open_ended=True))
     for provider in providers:
         keys = provider_keys(provider)
         if keys is not None:
@@ -1020,6 +1061,75 @@ def _takes_its_signature(spec: Any, spread: bool) -> bool:
     with no validator.
     """
     return spread and spec.input_serializer is None
+
+
+def _filled_by_an_untyped_provider(spec: Any) -> bool:
+    """Whether ``spec``, or its target lookup, has a ``kwargs`` provider that says nothing about its keys.
+
+    Such a provider may answer any name, so a reflected parameter it might fill
+    is never required of the caller (``_reflected``). A typed one says which
+    keys it fills, and the kernel relaxes exactly those. The spec's own
+    provider is held by test_a_selector_spec_s_own_provider and
+    test_a_service_spec_s_provider_keeps_its_target_lookup_s_parameter_optional,
+    the lookup's by test_a_target_lookup_s_own_provider. A selector spec has
+    no target lookup.
+    """
+    lookups = (getattr(spec, f"{role}_selector_spec", None) for role in ("instance", "collection"))
+    providers = [spec.kwargs, *(lookup.kwargs for lookup in lookups if lookup is not None)]
+    # ``provider_keys`` answers ``None`` only for a provider that says nothing:
+    # an absent one fills nothing, which it says.
+    return any(provider_keys(provider) is None for provider in providers)
+
+
+def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset[str]]:
+    """The reads ``as_kernel_spec(spec)`` requires for having no default alone: the spec's, then its target lookup's.
+
+    Each is a parameter of the callable the read is reflected from - a
+    selector spec's selector, a service spec's service and preconditions
+    under ``spread``, a target lookup's selector - that takes a keyword and
+    has no default (``_reflected``). The DRF edge relaxes exactly these in
+    each variant it dispatches (``kernel_spec_variant``), so a row a view hands in still answers a lookup's key, and a missing
+    argument is refused at the stage the edge documents rather than up front.
+    The rest of what is required stays required, each held by its case of
+    test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for:
+    an ``InputRequired`` parameter (``input-required``), a required key of an
+    ``Unpack``-ed ``TypedDict``, which is no keyword of the signature
+    (``typed-dict-key``), and a declared read of the name, which wins over
+    the reflected one: a selector spec's (``declared-by-the-selector-spec``), a
+    service spec's for its own reads (``declared-by-the-service-spec``) or for
+    its lookup's (``declared-by-the-spec-for-its-lookup``), or the lookup's own
+    (``declared-by-the-lookup``). A spread service's preconditions are named
+    beside it (``spread-precondition``).
+    """
+    declared = frozenset(entry.name for entry in spec.reads or ())
+    if not isinstance(spec, AffordanceDeclarer):
+        return _no_default(spec.selector) - declared, frozenset()
+    own = _no_default(spec.service).union(
+        *(_no_default(precondition) for precondition in spec.preconditions or ())
+    )
+    lookup: frozenset[str] = frozenset()
+    for role in ("instance", "collection"):
+        nested = getattr(spec, f"{role}_selector_spec")
+        if nested is not None and nested.selector is not None:
+            lookup |= _no_default(nested.selector) - {entry.name for entry in nested.reads or ()}
+    return own - declared, lookup - declared
+
+
+def _no_default(fn: Callable[..., Any]) -> frozenset[str]:
+    """``fn``'s keyword parameters with no default, less those marked ``InputRequired``."""
+    hints = callable_type_hints(fn)
+    return frozenset(
+        name
+        for name, parameter in inspect.signature(fn).parameters.items()
+        # One arc to coverage, a condition each, held by the cases of
+        # test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for:
+        # the kind by ``typed-dict-key``, the marker by ``input-required``, and
+        # the default by test_a_parameter_with_a_default_is_never_named.
+        if parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        and parameter.default is inspect.Parameter.empty
+        and not read_schema_markers(hints.get(name, Any))[1]
+    )
 
 
 def _owned_keys(callables: Sequence[Callable[..., Any]]) -> frozenset[str]:
@@ -1183,9 +1293,41 @@ def _names(parameters: Sequence[Parameter]) -> frozenset[str]:
     return frozenset(parameter.name for parameter in parameters)
 
 
-def _reflected(fn: Callable[..., Any], *, hidden: frozenset[str]) -> list[Parameter]:
-    """``fn``'s keyword parameters and ``Unpack``-ed keys, as Parameters, less the pool's and the hidden."""
+def _reflected(
+    fn: Callable[..., Any], *, hidden: frozenset[str], open_ended: bool
+) -> list[Parameter]:
+    """``fn``'s keyword parameters and ``Unpack``-ed keys, as Parameters, less the pool's and the hidden.
+
+    A named parameter with no default is required: only an argument can fill
+    it, and ``fn`` raises ``TypeError`` without one
+    (test_a_parameter_with_no_default_is_required), and one with a default is
+    not (test_a_parameter_with_a_default_stays_optional). A server's value still
+    reaches it - a route capture, a view hook's, a typed provider's, which the
+    kernel relaxes, or a seed's, which is no read at all
+    (``TestEachServerFillerAnswers``). A row handed in as ``target=`` does not:
+    the kernel checks the arguments before it reads the target, so a caller
+    handing one on the kernel's route still sends the lookup's key
+    (test_the_kernel_s_route_still_asks_for_the_key). drfs' edge answers it
+    without the key, as it always did, because each variant it dispatches
+    relaxes what this rule requires (``required_for_having_no_default``,
+    test_the_edge_answers_it_without_the_key). It stays optional where the
+    kernel cannot see the value coming:
+
+    - ``open_ended``: the call has a ``kwargs`` provider that says nothing
+      about its keys (``_filled_by_an_untyped_provider``), which may fill any
+      name, so none is asked of the caller, as ``spec_to_json_schema`` asks
+      none without ``supplied=``
+      (``TestAnUntypedProviderKeepsEveryParameterOptional``);
+    - ``fn`` is a wrapper that may fill its own parameters (``fills_its_own``)
+      (test_its_parameter_stays_optional_and_the_wrapper_fills_it).
+
+    A positional-only parameter, which ``spec_to_json_schema`` advertises and
+    never requires, is no read at all, below. An ``Unpack``-ed key keeps what
+    its ``TypedDict`` declares, and ``InputRequired`` stays required either way.
+    """
     skip = _NOT_ARGUMENTS | hidden
+    # Asked once, as the parameters below are all ``fn``'s.
+    asked = not open_ended and not fills_its_own(fn)
     hints = callable_type_hints(fn)
     reflected: list[Parameter] = []
     for name, parameter in inspect.signature(fn).parameters.items():
@@ -1209,8 +1351,11 @@ def _reflected(fn: Callable[..., Any], *, hidden: frozenset[str]) -> list[Parame
             inspect.Parameter.POSITIONAL_ONLY,
         ):
             continue
-        default = UNSET if parameter.default is inspect.Parameter.empty else parameter.default
-        reflected.append(_parameter(name, hints.get(name, Any), required=False, default=default))
+        empty = parameter.default is inspect.Parameter.empty
+        default = UNSET if empty else parameter.default
+        reflected.append(
+            _parameter(name, hints.get(name, Any), required=empty and asked, default=default)
+        )
     return reflected
 
 
@@ -1379,4 +1524,4 @@ def _positional(extend: Callable[..., QuerySet[Any]]) -> Callable[..., QuerySet[
     return extend_queryset
 
 
-__all__ = ["as_kernel_spec"]
+__all__ = ["as_kernel_spec", "required_for_having_no_default"]
