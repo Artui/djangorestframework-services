@@ -48,8 +48,10 @@ class PaymentTermsInput(serializers.Serializer):
     days = NetDaysField()
 
     def validate_days(self, value: int) -> int:
-        # The route's own check, in code no schema can read. The registry rule
-        # states the same range for the readers that never run this serializer.
+        # The route's own check: over HTTP the serializer is the validator and
+        # reads no registry. The rule states the same range for what a schema
+        # shows, and for the compiled spec, which checks it before the
+        # serializer runs.
         if not MIN_NET_DAYS <= value <= MAX_NET_DAYS:
             raise serializers.ValidationError(
                 f"Payment terms run {MIN_NET_DAYS} to {MAX_NET_DAYS} days."

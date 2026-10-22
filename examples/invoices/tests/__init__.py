@@ -235,7 +235,7 @@ class SpecRegistryTests(APITestCase):
         url = f"/invoices/{self.invoice.pk}/terms/"
         response = self.client.post(url, {"days": 0}, format="json")
         self.assertEqual(response.status_code, 400)
-        self.assertIn("days", response.data)
+        self.assertEqual(response.data, {"days": ["Payment terms run 1 to 90 days."]})
 
         response = self.client.post(url, {"days": 30}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
