@@ -70,8 +70,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compiles with it, because a `QueryParam` declares no choices, so no key is
   present under every value a caller may send. The default is unchanged.
 
+- **A spec carries its own `JsonSchemaRegistry`.** `ServiceSpec` and
+  `SelectorSpec` take `json_schema_registry=`. `spec_to_json_schema` reads it
+  when no `registry=` is passed; a passed one wins, the empty default included.
+  A service spec's target lookup and output selector spec read their own, else
+  the service spec's. An affordance reads only its own.
+- **A spec's `fields` rules reach the compiled spec.** Where the compile walks
+  the input and output serializers, the keywords of a matched fragment that a
+  kernel `Parameter` or `OutputField` spells set that field, and are checked
+  off HTTP. The rest goes to `json_schema_extra`, advertised and not checked. A
+  `format` outside the kernel's four (`decimal`, `date-time`, `date`, `uuid`)
+  is dropped from the compiled spec and kept in drfs' own schemas.
+- **A keyword the kernel cannot state is dropped, never refused.** A `format`
+  with no type, a bound on a string, a `maximum` below the `minimum`, or a value
+  that is not JSON leaves the compiled spec and stays in drfs' schemas, so a
+  registry `spec_to_json_schema` accepts never stops a spec compiling.
+- **A `python_types` rule on a spec's registry types its reflected reads.** A
+  selector's, target lookup's and spread service's annotations are matched by
+  identity, and a typed read is then checked as an annotation is.
+- **A registry's `filters` rules describe drfs' schema alone.** The kernel
+  builds a `filter_set`'s parameters itself.
+- **A dataclass input reads different rules on the two routes.** drfs' helpers
+  match its annotations against `python_types`; the compile matches the fields
+  of the serializer built from it against `fields`. A rule meant for both is
+  registered on the type and on the field class.
+
 ### Changed
 
+- **`spec_to_json_schema(registry=)` defaults to `None`.** Leaving it out reads
+  the spec's own registry; passing `DEFAULT_JSON_SCHEMA_REGISTRY` still
+  describes the whole schema by the empty registry.
 - **Requires django-service-specs 0.14.0.** Its reserved pool names gain
   `call_context`, which a `pool_seeds` entry may no longer take.
 - **A declared `QueryParam` that no callable of the call takes by name compiles
