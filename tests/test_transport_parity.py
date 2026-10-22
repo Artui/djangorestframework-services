@@ -957,13 +957,6 @@ def test_a_selector_action_hands_its_providers_the_request_s_context(kind: Selec
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "dispatch_selector_for_spec (selectors/utils.py) does not hand dispatch_spec "
-        "the view's call_context, so the edge builds a dict of its own"
-    ),
-)
 def test_a_selector_spec_s_kwargs_provider_shares_the_view_s_context() -> None:
     recorder = _Recorder()
     spec = dataclasses.replace(

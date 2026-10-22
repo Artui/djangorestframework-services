@@ -33,8 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-empty `action` or else `None`.
 - **A `kwargs` provider, `input_data`, `input_serializer_context` or
   `output_serializer_context` that names `call_context` is answered on drfs' own
-  route,** as it already was on the kernel's. Each serializer still has its own
-  copy of its context; a provider copies what it needs from the call's.
+  route, live views included,** as it already was on the kernel's; on a view it
+  raised `TypeError`. A view's request is one call with one dict, holding the
+  edge's four standard entries: the view hands it to `dispatch_spec` and to the
+  render, bulk included, and every provider and `get_*` hook the view invokes
+  itself, its `kwargs`, `input_data` and serializer-context hooks among them, is
+  offered it by name. A second request is a second dict. Each serializer still
+  has its own copy of its context; a provider copies what it needs from the
+  call's.
 - **`render_spec_output`, `arender_spec_output`, `render_for_audience` and
   `arender_for_audience` take `call_context=`,** handed to an output context
   provider naming it. A transport renders after the dispatch returns, so it

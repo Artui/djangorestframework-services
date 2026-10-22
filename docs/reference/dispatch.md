@@ -73,8 +73,12 @@ names it. Those are the kernel's `dispatch` and its target lookup, and the two
 stages this edge calls itself, the spec's `kwargs` provider and `input_data`,
 beside the `input_serializer_context` and `output_serializer_context`
 providers, so a stage writes where a later one, or the caller, reads. With none,
-each call gets a fresh dict, and a view passes none, so a context per dispatch
-is a context per request. A serializer's context is a separate dict of its own:
+each call gets a fresh dict. A live view builds one per request, with the same
+four entries below, and hands that one dict to its dispatch, to the render, bulk
+included, and to every provider and `get_*` hook it invokes itself (its
+`kwargs`, `input_data` and serializer-context hooks among them) that names
+`call_context`. A second request is a second dict. A serializer's context is a
+separate dict of its own:
 a provider that names `call_context` is handed the call's, and copies into the
 context it returns what the serializer should see.
 
