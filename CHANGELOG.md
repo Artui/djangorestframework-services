@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name now compiles to the kernel's `shapes`. A transport or schema builder
   that walked `.reads` to find a spec's query arguments stops finding it there;
   `kernel_spec(spec).parameters()` lists both groups.
+- **Send a target lookup's key when handing `target=` to the kernel's own
+  `dispatch`.** A lookup's keyword parameter with no default now compiles as
+  required, so the kernel refuses the call without it, even with the row
+  handed in. drfs' views and `dispatch_spec` do not ask for it.
 - **Rename a `pool_seeds` entry called `call_context`.** The kernel reserves
   the name from 0.14.0.
 
@@ -86,6 +90,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   array of the row. drfs' edge checks such a return by the declaration, not by
   the kind the kernel reports, so a mapping, `str`, `bytes`, a non-iterable or
   `None` is refused with `ImproperlyConfigured` however the spec is compiled.
+
+- **A keyword parameter with no default on a selector, a target lookup, or a
+  spread service and its preconditions compiles as required** on
+  `kernel_spec(spec)`, so the kernel's input schema lists it as required and
+  its own `dispatch` refuses a call without it. It stays optional where a
+  `kwargs` provider that does not type its keys may fill it, and on a wrapper
+  that fills its own parameters. drfs' views and `dispatch_spec` answer as
+  before: a view handing the row it resolved needs no lookup key, and a
+  missing argument is refused at the stage it was.
 
 ## [0.58.0] — 2026-10-16
 
