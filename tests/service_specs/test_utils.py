@@ -19,7 +19,11 @@ from django_service_specs.types.unset import UNSET as KERNEL_UNSET
 from rest_framework import ISO_8601, serializers
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.service_specs.utils import describe_serializer, input_parameters
+from rest_framework_services.service_specs.utils import (
+    describe_serializer,
+    input_parameters,
+    serializer_context,
+)
 from rest_framework_services.types.unset import UNSET
 from tests.testapp.models import Post, Tag
 
@@ -623,3 +627,30 @@ def test_a_truncated_list_of_rows_is_a_list_of_open_objects() -> None:
         assert deepest is not None and isinstance(deepest.items, Parameters)
         deepest = deepest.items.get("children")
     assert deepest == Parameter("children", "array", items="object")
+
+
+def test_a_description_with_no_call_context_does_not_ask_a_callable_naming_it() -> None:
+    asked: list[Any] = []
+
+    def provider(call_context: Any) -> dict[str, Any]:
+        asked.append(call_context)
+        return {"tenant": "acme"}
+
+    context = serializer_context(None, {}, {}, provider=provider, describing=True)
+
+    assert asked == []
+    assert "tenant" not in context
+
+
+def test_a_call_context_is_offered_to_the_callable_as_the_call_s_own_dict() -> None:
+    held: dict[str, Any] = {}
+
+    context = serializer_context(
+        None,
+        {},
+        {},
+        provider=lambda call_context: {"same": call_context is held},
+        call_context=held,
+    )
+
+    assert context["same"] is True

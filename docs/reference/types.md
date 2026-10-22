@@ -151,6 +151,43 @@ marker on one is not enforced: a parameter nothing fills is the callable's own
 
 ## `QueryParam`
 
+A `QueryParam` is one of the spec's arguments, and it is either a **read** or a
+**shape** once the spec compiles. A **read** is handed by name to a callable of
+the call. A **shape** shapes what is rendered, as a serializer reading
+`?fields=` does, so the kernel hands it to the presenter alone, on
+`PresentationContext.shapes`, and to no callable. A top-level `QueryParam` that
+no callable of the call takes by name is a shape. The callables that count are:
+
+- the service or selector, by a named parameter or an `Unpack`-ed
+  `TypedDict` key;
+- a precondition of either;
+- a target lookup's selector, and its `kwargs` provider;
+- the spec's `kwargs` and `input_data` providers, by a named parameter, or by a
+  key a typed one is annotated to fill;
+- any of them taking a bare `**kwargs`, which takes every name, so one such
+  callable makes every `QueryParam` of the spec a read;
+- the fields of a selector spec's `filter_set`.
+
+A `QueryParam` declared on a nested spec (a target lookup's own `reads`) stays a
+read, and a `UrlKwarg` is never a shape.
+
+A shape is still one of the call's parameters, so `kernel_spec(spec).parameters()`
+lists it and the caller's value is checked as declared; it is left out of `kernel_spec(spec).reads` and listed in
+`kernel_spec(spec).shapes`. Code that walked `.reads` to find a spec's query
+arguments reads `.shapes` for these, or `.parameters()` for both. A permission
+class still reads a shape off `request.query_params`, as it reads any declared
+`QueryParam`.
+
+Because a shape may drop any key the serializer renders, the compiled output
+declares no field present under every value a caller may send: the
+`SerializerPresenter` a spec with shapes compiles is built with `shaped=True`,
+which marks no output field `always_present` at any depth. The flag is the
+presenter's own, with the default unchanged (see
+[`SerializerPresenter`][rest_framework_services.service_specs.serializer_presenter.SerializerPresenter]),
+and a presenter built by hand for a spec whose output a caller's argument
+shapes passes it itself. A `QueryParam` declares no choices, so no key can be
+named as present under all of them.
+
 ::: rest_framework_services.types.query_param.QueryParam
 
 ## `validate_channel_names`

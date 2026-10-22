@@ -20,17 +20,24 @@ which drives one case through both and compares the outcomes.
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from typing import Any
 
 import pytest
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser, User
+from django_service_specs.dispatch.dispatch import dispatch as kernel_dispatch
+from django_service_specs.dispatch.grant import Grant
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from rest_framework_services import (
+    PolymorphicServiceSpec,
     SelectorKind,
+    SelectorListView,
+    SelectorRetrieveView,
     SelectorSpec,
     ServiceError,
     ServiceSpec,
@@ -40,6 +47,7 @@ from rest_framework_services import (
     build_offline_context,
     dispatch_spec,
     render_spec_output,
+    selector_action,
 )
 from rest_framework_services.viewsets.selector_viewset import SelectorViewSet
 from tests.testapp.models import Post
@@ -726,3 +734,585 @@ async def test_a_refusal_takes_the_wire_name_on_the_async_path() -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
         await adispatch_spec(_ALIAS_SPEC, user=None, params={"headline": "t"})
     assert excinfo.value.detail == {"headline": ["Too long."]}
+
+
+# --- a callable naming the call's context ---------------------------------
+#
+# The kernel hands every stage naming ``call_context`` the call's dict. drfs'
+# edge calls the spec's ``kwargs`` provider itself, so the edge has to offer the
+# same name, or a spec written for the kernel's route raises ``TypeError`` here.
+
+
+def _context_provider(*, call_context: dict[str, Any]) -> dict[str, Any]:
+    return {"tenant": f"entries:{','.join(sorted(call_context))}"}
+
+
+def _with_tenant(*, data: Any, tenant: str) -> dict[str, Any]:
+    return {**data, "tenant": tenant}
+
+
+_CONTEXT_SPEC = ServiceSpec(
+    service=_with_tenant, input_serializer=_TitleOnlyInput, kwargs=_context_provider, atomic=False
+)
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_on_the_kernel_s_route() -> None:
+    principal = AnonymousUser()
+    compiled = kernel_spec(_CONTEXT_SPEC)
+    result = kernel_dispatch(
+        compiled,
+        principal=principal,
+        arguments={"title": "t"},
+        grant=Grant(compiled, principal),
+        call_context={"request": None, "view": None, "format": None, "action": None},
+    )
+    assert result.value == {"title": "t", "tenant": "entries:action,format,request,view"}
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_off_http() -> None:
+    result = dispatch_spec(_CONTEXT_SPEC, user=None, params={"title": "t"})
+    assert result.value == {"title": "t", "tenant": "entries:action,format,request,view"}
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_over_http() -> None:
+    seen: dict[str, Any] = {}
+
+    def provider(*, call_context: dict[str, Any]) -> dict[str, Any]:
+        seen.update(call_context)
+        return _context_provider(call_context=call_context)
+
+    spec = ServiceSpec(service=_with_tenant, input_serializer=_TitleOnlyInput, kwargs=provider)
+    response = _create_view(spec)(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.data == {"title": "t", "tenant": "entries:action,format,request,view"}
+    # A view's call is the request's: the live request and view, the view's
+    # action, and no format.
+    assert seen["request"].method == "POST"
+    assert seen["view"].action == "create"
+    assert seen["action"] == "create"
+    assert seen["format"] is None
+
+
+# --- a live view's call context ----------------------------------------------
+#
+# A view's request is one call, so it is one dict: the one ``dispatch_spec`` is
+# handed and the one every provider the view invokes itself is handed, the view's
+# own hooks and the spec's serializer-context providers alike. A provider naming
+# ``call_context`` raised ``TypeError`` from a view that renders for itself, and
+# the bulk renderer handed its provider an empty dict of its own.
+
+
+class _Recorder:
+    """Providers and hooks naming ``call_context``, each recording the dict it got."""
+
+    def __init__(self) -> None:
+        self.seen: dict[str, list[dict[str, Any]]] = {}
+
+    def provider(self, stage: str) -> Any:
+        def provide(*, call_context: dict[str, Any]) -> dict[str, Any]:
+            self.seen.setdefault(stage, []).append(call_context)
+            return {}
+
+        return provide
+
+    def hook(self, stage: str) -> Any:
+        provide = self.provider(stage)
+
+        def method(self_: Any, *, call_context: dict[str, Any]) -> dict[str, Any]:
+            return provide(call_context=call_context)
+
+        return method
+
+    def one(self) -> dict[str, Any]:
+        """The single dict every recorded stage was handed, asserted to be one object."""
+        dicts = [context for contexts in self.seen.values() for context in contexts]
+        assert dicts, "no stage was asked"
+        assert all(context is dicts[0] for context in dicts), {
+            stage: [id(context) for context in contexts] for stage, contexts in self.seen.items()
+        }
+        return dicts[0]
+
+
+def _assert_the_request_s(context: dict[str, Any], *, method: str, action: str | None) -> None:
+    assert context["request"].method == method
+    assert context["view"].request is context["request"]
+    assert context["format"] is None
+    assert context["action"] == action
+
+
+class _Rendered(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields = ("id", "title")
+
+
+def _all_posts() -> Any:
+    return Post.objects.all()
+
+
+def _one_post(*, pk: int) -> Any:
+    return Post.objects.get(pk=pk)
+
+
+def _selector_spec(kind: SelectorKind, recorder: _Recorder) -> SelectorSpec[Any, Any]:
+    return SelectorSpec(
+        kind=kind,
+        selector=_all_posts if kind is SelectorKind.LIST else _one_post,
+        output_serializer=_Rendered,
+        output_serializer_context=recorder.provider("output_serializer_context"),
+    )
+
+
+# Each case runs once with the spec's providers alone, the claim the docs make,
+# and once with the view's hooks naming ``call_context`` beside them.
+_HOOKED = pytest.mark.parametrize("hooked", [False, True], ids=["spec", "spec-and-hooks"])
+
+
+@pytest.mark.django_db
+@_HOOKED
+@pytest.mark.parametrize("action", ["list", "retrieve"])
+def test_a_selector_viewset_hands_its_providers_the_request_s_context(
+    action: str, hooked: bool
+) -> None:
+    post = Post.objects.create(title="a")
+    recorder = _Recorder()
+    kind = SelectorKind.LIST if action == "list" else SelectorKind.RETRIEVE
+    hooks = {
+        "get_selector_kwargs": recorder.hook("get_selector_kwargs"),
+        f"get_{action}_output_serializer_context": recorder.hook("action_output_hook"),
+    }
+    viewset = type(
+        "_VS",
+        (SelectorViewSet,),
+        {
+            "queryset": Post.objects.all(),
+            "action_specs": {action: _selector_spec(kind, recorder)},
+            **(hooks if hooked else {}),
+        },
+    )
+    view = viewset.as_view({"get": action})
+    request = APIRequestFactory().get("/x/")
+    response = view(request) if action == "list" else view(request, pk=post.pk)
+
+    assert response.status_code == 200
+    assert set(recorder.seen) == {"output_serializer_context"} | (
+        {"get_selector_kwargs", "action_output_hook"} if hooked else set()
+    )
+    _assert_the_request_s(recorder.one(), method="GET", action=action)
+
+
+@pytest.mark.django_db
+@_HOOKED
+@pytest.mark.parametrize("view_class", [SelectorListView, SelectorRetrieveView])
+def test_a_selector_view_hands_its_providers_the_request_s_context(
+    view_class: Any, hooked: bool
+) -> None:
+    post = Post.objects.create(title="a")
+    recorder = _Recorder()
+    listing = view_class is SelectorListView
+    view = type(
+        "_V",
+        (view_class,),
+        {
+            "queryset": Post.objects.all(),
+            "spec": _selector_spec(
+                SelectorKind.LIST if listing else SelectorKind.RETRIEVE, recorder
+            ),
+            **({"get_selector_kwargs": recorder.hook("get_selector_kwargs")} if hooked else {}),
+        },
+    ).as_view()
+    request = APIRequestFactory().get("/x/")
+    response = view(request) if listing else view(request, pk=post.pk)
+
+    assert response.status_code == 200
+    assert set(recorder.seen) == {"output_serializer_context"} | (
+        {"get_selector_kwargs"} if hooked else set()
+    )
+    # A view with no action is a call with none.
+    _assert_the_request_s(recorder.one(), method="GET", action=None)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("kind", [SelectorKind.LIST, SelectorKind.RETRIEVE])
+def test_a_selector_action_hands_its_providers_the_request_s_context(kind: SelectorKind) -> None:
+    post = Post.objects.create(title="a")
+    recorder = _Recorder()
+
+    class _VS(SelectorViewSet):
+        queryset = Post.objects.all()
+        get_output_serializer_context = recorder.hook("output_hook")
+
+        @selector_action(_selector_spec(kind, recorder), detail=kind is SelectorKind.RETRIEVE)
+        def latest(self, request: Any, *args: Any, **kwargs: Any) -> Any: ...
+
+    view = _VS.as_view({"get": "latest"})
+    request = APIRequestFactory().get("/x/")
+    response = view(request) if kind is SelectorKind.LIST else view(request, pk=post.pk)
+
+    assert response.status_code == 200
+    assert set(recorder.seen) == {"output_hook", "output_serializer_context"}
+    _assert_the_request_s(recorder.one(), method="GET", action="latest")
+
+
+@pytest.mark.django_db
+def test_a_selector_spec_s_kwargs_provider_shares_the_view_s_context() -> None:
+    recorder = _Recorder()
+    spec = dataclasses.replace(
+        _selector_spec(SelectorKind.LIST, recorder), kwargs=recorder.provider("kwargs")
+    )
+    viewset = type(
+        "_VS", (SelectorViewSet,), {"queryset": Post.objects.all(), "action_specs": {"list": spec}}
+    )
+    response = viewset.as_view({"get": "list"})(APIRequestFactory().get("/x/"))
+
+    assert response.status_code == 200
+    assert set(recorder.seen) == {"kwargs", "output_serializer_context"}
+    recorder.one()
+
+
+def _create_posts(*, data: Any) -> Any:
+    if isinstance(data, list):
+        return [Post.objects.create(title=item["title"]) for item in data]
+    return Post.objects.create(title=data["title"])
+
+
+def _create_spec(recorder: _Recorder, **fields: Any) -> ServiceSpec[Any, Any, Any]:
+    return ServiceSpec(
+        service=_create_posts,
+        input_serializer=_TitleOnlyInput,
+        kwargs=recorder.provider("kwargs"),
+        input_data=recorder.provider("input_data"),
+        input_serializer_context=recorder.provider("input_serializer_context"),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=_Rendered,
+            output_serializer_context=recorder.provider("output_serializer_context"),
+        ),
+        **fields,
+    )
+
+
+def _hooked(recorder: _Recorder) -> dict[str, Any]:
+    """Every view hook a mutation view invokes, each naming ``call_context``."""
+    return {
+        "get_service_kwargs": recorder.hook("get_service_kwargs"),
+        "get_create_service_kwargs": recorder.hook("get_create_service_kwargs"),
+        "get_input_data": recorder.hook("get_input_data"),
+        "get_create_input_data": recorder.hook("get_create_input_data"),
+        "get_input_serializer_context": recorder.hook("get_input_serializer_context"),
+        "get_create_input_serializer_context": recorder.hook("action_input_hook"),
+        "get_output_serializer_context": recorder.hook("get_output_serializer_context"),
+        "get_create_output_serializer_context": recorder.hook("action_output_hook"),
+    }
+
+
+_SPEC_STAGES = {"kwargs", "input_data", "input_serializer_context", "output_serializer_context"}
+_EVERY_MUTATION_STAGE = _SPEC_STAGES | {
+    "get_service_kwargs",
+    "get_create_service_kwargs",
+    "get_input_data",
+    "get_create_input_data",
+    "get_input_serializer_context",
+    "action_input_hook",
+    "get_output_serializer_context",
+    "action_output_hook",
+}
+
+
+@pytest.mark.django_db
+@_HOOKED
+def test_a_create_hands_every_provider_the_request_s_context(hooked: bool) -> None:
+    recorder = _Recorder()
+    view = _create_view(_create_spec(recorder), **(_hooked(recorder) if hooked else {}))
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == (_EVERY_MUTATION_STAGE if hooked else _SPEC_STAGES)
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+
+
+@pytest.mark.django_db
+@_HOOKED
+def test_a_bulk_create_hands_every_provider_the_request_s_context(hooked: bool) -> None:
+    recorder = _Recorder()
+    view = _create_view(_create_spec(recorder, many=True), **(_hooked(recorder) if hooked else {}))
+    response = view(APIRequestFactory().post("/x/", [{"title": "t"}], format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == (_EVERY_MUTATION_STAGE if hooked else _SPEC_STAGES)
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+
+
+@pytest.mark.django_db
+def test_an_input_provider_shares_the_context_of_the_view_s_input_hook() -> None:
+    """The spec's input context provider, run by the edge, and the view's hook, run here."""
+    recorder = _Recorder()
+    spec = ServiceSpec(
+        service=lambda *, data: Post.objects.create(title=data["title"]),
+        input_serializer=_TitleOnlyInput,
+        input_serializer_context=recorder.provider("input_serializer_context"),
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Rendered),
+    )
+    view = _create_view(
+        spec, get_input_serializer_context=recorder.hook("get_input_serializer_context")
+    )
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == {"input_serializer_context", "get_input_serializer_context"}
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+
+
+@pytest.mark.django_db
+def test_each_request_is_a_call_of_its_own() -> None:
+    recorder = _Recorder()
+    view = _create_view(_create_spec(recorder))
+    for title in ("a", "b"):
+        assert (
+            view(APIRequestFactory().post("/x/", {"title": title}, format="json")).status_code
+            == 201
+        )
+
+    first, second = recorder.seen["kwargs"]
+    assert first is not second
+    assert recorder.seen["output_serializer_context"] == [first, second]
+    assert recorder.seen["output_serializer_context"][0] is first
+    assert recorder.seen["output_serializer_context"][1] is second
+
+
+# --- the call context is offered by name -----------------------------------
+#
+# The view offers the request's dict to a callable naming ``call_context``, as
+# the edge and the kernel do, and never to one taking ``**kwargs`` alone: such a
+# callable sees the keys it saw before the view carried a context, and a
+# serializer-context hook returning ``dict(kwargs)`` puts no ``call_context``
+# into ``serializer.context``.
+
+
+def _catch_all(seen: dict[str, set[str]], stage: str, *, answer: bool = False) -> Any:
+    def provide(**kwargs: Any) -> dict[str, Any]:
+        seen[stage] = set(kwargs)
+        return dict(kwargs) if answer else {}
+
+    return provide
+
+
+def _catch_all_hook(seen: dict[str, set[str]], stage: str, *, answer: bool = False) -> Any:
+    provide = _catch_all(seen, stage, answer=answer)
+
+    def method(self_: Any, **kwargs: Any) -> dict[str, Any]:
+        return provide(**kwargs)
+
+    return method
+
+
+_SERIALIZER_CONTEXT_HOOKS = {
+    "get_input_serializer_context",
+    "get_create_input_serializer_context",
+    "get_output_serializer_context",
+    "get_create_output_serializer_context",
+}
+
+# What each callable taking ``**kwargs`` alone is handed on a live create: no
+# ``call_context`` anywhere, the view's hooks and the spec's providers alike.
+_CATCH_ALL_KEYS = {
+    "get_service_kwargs": {"request", "view"},
+    "get_create_service_kwargs": {"request", "view"},
+    "get_input_data": {"instance", "request", "view"},
+    "get_create_input_data": {"instance", "request", "view"},
+    "get_input_serializer_context": {"request", "view"},
+    "get_create_input_serializer_context": {"request", "view"},
+    "get_output_serializer_context": {"request", "result", "view"},
+    "get_create_output_serializer_context": {"request", "result", "view"},
+    "kwargs": {"request", "view"},
+    "input_data": {"instance", "request", "view"},
+    "input_serializer_context": {"progress", "request", "title", "user", "view"},
+    "output_serializer_context": {"request", "result", "view"},
+    "serializer.context": {"format", "request", "result", "view"},
+}
+
+
+@pytest.mark.django_db
+def test_a_catch_all_callable_on_a_live_view_is_never_handed_the_call_context() -> None:
+    seen: dict[str, set[str]] = {}
+
+    class _Recorded(_Rendered):
+        def to_representation(self, instance: Any) -> Any:
+            seen["serializer.context"] = set(self.context)
+            return super().to_representation(instance)
+
+    spec = ServiceSpec(
+        service=_create_posts,
+        input_serializer=_TitleOnlyInput,
+        kwargs=_catch_all(seen, "kwargs"),
+        input_data=_catch_all(seen, "input_data"),
+        input_serializer_context=_catch_all(seen, "input_serializer_context", answer=True),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=_Recorded,
+            output_serializer_context=_catch_all(seen, "output_serializer_context", answer=True),
+        ),
+    )
+    hooks = {
+        name: _catch_all_hook(seen, name, answer=name in _SERIALIZER_CONTEXT_HOOKS)
+        for name in _CATCH_ALL_KEYS
+        if name.startswith("get_")
+    }
+    view = _create_view(spec, **hooks)
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert seen == _CATCH_ALL_KEYS
+    assert "call_context" not in seen["serializer.context"]
+
+
+@pytest.mark.django_db
+def test_a_catch_all_hook_naming_the_call_context_is_handed_the_request_s_dict() -> None:
+    recorder = _Recorder()
+    rest: dict[str, set[str]] = {}
+
+    def method(self_: Any, *, call_context: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        rest["get_output_serializer_context"] = set(kwargs)
+        return recorder.provider("get_output_serializer_context")(call_context=call_context)
+
+    view = _create_view(_create_spec(recorder), get_output_serializer_context=method)
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == _SPEC_STAGES | {"get_output_serializer_context"}
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+    assert rest == {"get_output_serializer_context": {"request", "result", "view"}}
+
+
+# --- the progress hook and the discriminator --------------------------------
+#
+# Two callables the view invokes itself, each offered the request's dict by
+# name: a reporter hook or a discriminator naming ``call_context`` raised
+# ``TypeError`` at request time.
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("name", ["get_progress_reporter", "get_create_progress_reporter"])
+def test_a_progress_hook_naming_the_call_context_is_handed_the_request_s_dict(name: str) -> None:
+    recorder = _Recorder()
+
+    def method(self_: Any, *, call_context: dict[str, Any]) -> None:
+        recorder.provider(name)(call_context=call_context)
+
+    view = _create_view(_create_spec(recorder), **{name: method})
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == _SPEC_STAGES | {name}
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("name", ["get_progress_reporter", "get_create_progress_reporter"])
+def test_a_catch_all_progress_hook_is_never_handed_the_call_context(name: str) -> None:
+    seen: dict[str, set[str]] = {}
+
+    def method(self_: Any, **kwargs: Any) -> None:
+        seen[name] = set(kwargs)
+
+    view = _create_view(_create_spec(_Recorder()), **{name: method})
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert seen == {name: {"request", "view"}}
+
+
+@pytest.mark.django_db
+def test_a_discriminator_naming_the_call_context_is_handed_the_request_s_dict() -> None:
+    recorder = _Recorder()
+
+    def discriminator(*, call_context: dict[str, Any]) -> str:
+        recorder.provider("discriminator")(call_context=call_context)
+        return "post"
+
+    spec = PolymorphicServiceSpec(
+        discriminator=discriminator, specs={"post": _create_spec(recorder)}
+    )
+    response = _create_view(spec)(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert set(recorder.seen) == _SPEC_STAGES | {"discriminator"}
+    _assert_the_request_s(recorder.one(), method="POST", action="create")
+
+
+@pytest.mark.django_db
+def test_a_catch_all_discriminator_is_never_handed_the_call_context() -> None:
+    seen: dict[str, set[str]] = {}
+
+    def discriminator(**kwargs: Any) -> str:
+        seen["discriminator"] = set(kwargs)
+        return "post"
+
+    spec = PolymorphicServiceSpec(
+        discriminator=discriminator, specs={"post": _create_spec(_Recorder())}
+    )
+    response = _create_view(spec)(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert seen == {"discriminator": {"data", "request", "user", "view"}}
+
+
+# --- two dispatches in one request -------------------------------------------
+
+
+def _retitle(*, instance: Post, data: Any) -> Post:
+    instance.title = data["title"]
+    instance.save(update_fields=["title"])
+    return instance
+
+
+@pytest.mark.django_db
+def test_an_update_and_the_retrieve_that_finds_its_row_share_the_request_s_dict() -> None:
+    """The retrieve spec resolves the row, then the update spec runs: one request, one dict."""
+    post = Post.objects.create(title="a")
+    recorder = _Recorder()
+    found: dict[str, Any] = {}
+
+    def retrieve_kwargs(*, call_context: dict[str, Any]) -> dict[str, Any]:
+        call_context["row_found_by"] = "retrieve"
+        return recorder.provider("retrieve.kwargs")(call_context=call_context)
+
+    def update_kwargs(*, call_context: dict[str, Any]) -> dict[str, Any]:
+        found["row_found_by"] = call_context.get("row_found_by")
+        return recorder.provider("update.kwargs")(call_context=call_context)
+
+    viewset = type(
+        "_VS",
+        (ServiceViewSet,),
+        {
+            "queryset": Post.objects.all(),
+            "action_specs": {
+                "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_one_post,
+                    output_serializer=_Rendered,
+                    kwargs=retrieve_kwargs,
+                ),
+                "update": ServiceSpec(
+                    service=_retitle,
+                    input_serializer=_TitleOnlyInput,
+                    kwargs=update_kwargs,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        output_serializer=_Rendered,
+                        output_serializer_context=recorder.provider("update.output"),
+                    ),
+                ),
+            },
+        },
+    )
+    view = viewset.as_view({"put": "update"})
+    response = view(APIRequestFactory().put("/x/", {"title": "b"}, format="json"), pk=post.pk)
+
+    assert response.status_code == 200, response.data
+    assert set(recorder.seen) == {"retrieve.kwargs", "update.kwargs", "update.output"}
+    _assert_the_request_s(recorder.one(), method="PUT", action="update")
+    assert found == {"row_found_by": "retrieve"}

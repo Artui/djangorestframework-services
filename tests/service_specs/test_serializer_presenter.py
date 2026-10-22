@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
+from django.test import RequestFactory
 from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.dispatch.audience_projection_for_spec import (
     audience_projection_for_spec,
@@ -30,6 +31,7 @@ from rest_framework import serializers
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
+from rest_framework_services.service_specs.utils import EDGE_CALL, EdgeCallState
 from rest_framework_services.types.field_marking import MARKING
 
 STATUSES = [("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")]
@@ -610,3 +612,289 @@ def test_dispatch_carries_the_call_s_context_to_a_list_and_a_service_spec() -> N
 
     assert [row["request_seen"] for row in rows] == [offline.request, offline.request]
     assert made["request_seen"] is offline.request
+
+
+class _Shaped(serializers.Serializer):
+    """Reads what a read-shaping query param would put on the request, as a ``fields`` selector does."""
+
+    name = serializers.CharField()
+    fields_asked = serializers.SerializerMethodField()
+
+    def get_fields_asked(self, obj: Any) -> list[str]:
+        return self.context["request"].query_params.getlist("fields")
+
+
+def test_presented_carries_the_shapes_as_the_offline_request_s_query_string() -> None:
+    context = PresentationContext(object(), shapes=MappingProxyType({"fields": ["name", "id"]}))
+
+    payload = SerializerPresenter(_Shaped).presented(_row(), context)
+
+    assert payload["fields_asked"] == ["name", "id"]
+
+
+def test_an_offline_pair_is_built_for_its_own_shapes_within_one_edge_call() -> None:
+    principal = object()
+    presenter = SerializerPresenter(_Shaped)
+    token = EDGE_CALL.set(EdgeCallState())
+    try:
+        first = presenter.presented(
+            _row(), PresentationContext(principal, shapes=MappingProxyType({"fields": ["a"]}))
+        )
+        second = presenter.presented(
+            _row(), PresentationContext(principal, shapes=MappingProxyType({"fields": ["b"]}))
+        )
+    finally:
+        EDGE_CALL.reset(token)
+
+    assert (first["fields_asked"], second["fields_asked"]) == (["a"], ["b"])
+
+
+def test_a_registered_request_is_left_as_it_is_under_a_shape() -> None:
+    offline = build_offline_context(object(), {})
+    context = PresentationContext(
+        object(),
+        ambient=MappingProxyType({"request": offline.request, "view": offline.view}),
+        shapes=MappingProxyType({"fields": ["name"]}),
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["request_seen"] is offline.request
+
+
+def test_presented_hands_the_serializer_the_call_context_s_request_and_view() -> None:
+    offline = build_offline_context(object(), {})
+    context = PresentationContext(
+        object(), call_context={"request": offline.request, "view": offline.view, "format": None}
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["request_seen"] is offline.request
+    assert payload["view_seen"] is offline.view
+
+
+def test_presented_prefers_a_registered_seed_to_the_call_context() -> None:
+    seeded = build_offline_context(object(), {})
+    held = build_offline_context(object(), {})
+    context = PresentationContext(
+        object(),
+        ambient=MappingProxyType({"request": seeded.request, "view": seeded.view}),
+        call_context={"request": held.request, "view": held.view},
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["request_seen"] is seeded.request
+    assert payload["view_seen"] is seeded.view
+
+
+def test_a_none_in_the_call_context_falls_through_to_the_offline_pair() -> None:
+    principal = object()
+    context = PresentationContext(
+        principal, call_context={"request": None, "view": None, "format": None}
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["viewer"] is principal
+    assert payload["view_seen"].request is payload["request_seen"]
+
+
+class _Deep(serializers.Serializer):
+    sku = serializers.CharField()
+    note = serializers.CharField(allow_null=True)
+
+
+class _Top(serializers.Serializer):
+    name = serializers.CharField()
+    one = _Deep()
+    many = _Deep(many=True)
+    listed = serializers.ListField(child=_Deep())
+
+
+def _presence(output: Output) -> dict[str, Any]:
+    """Each field's ``always_present``, and beneath it what its nested output says."""
+    presence: dict[str, Any] = {}
+    for field in output:
+        nested = field.fields if field.fields is not None else field.items
+        presence[field.name] = (
+            (field.always_present, _presence(nested))
+            if isinstance(nested, Output)
+            else field.always_present
+        )
+    return presence
+
+
+def test_a_shaped_output_marks_no_key_present_at_any_depth() -> None:
+    deep = {"sku": False, "note": False}
+
+    output = SerializerPresenter(_Top, shaped=True).output()
+
+    assert _presence(output) == {
+        "name": False,
+        "one": (False, deep),
+        "many": (False, deep),
+        "listed": (False, deep),
+    }
+
+
+def test_an_unshaped_output_says_what_drf_is_bound_to_emit() -> None:
+    deep = {"sku": True, "note": True}
+
+    output = SerializerPresenter(_Top).output()
+
+    assert _presence(output) == {
+        "name": True,
+        "one": (True, deep),
+        "many": (True, deep),
+        "listed": (True, deep),
+    }
+
+
+def test_a_shaped_output_keeps_the_markings_field_audiences_layer() -> None:
+    marking = FieldMarking.hidden()
+
+    output = SerializerPresenter(_Top, shaped=True, field_audiences={"name": marking}).output()
+    name = next(field for field in output if field.name == "name")
+
+    assert name.marking is marking
+    assert name.always_present is False
+
+
+def test_a_seed_registered_as_none_falls_through_to_the_call_context() -> None:
+    # A DRF edge registers both seeds on every call, ``None`` where it was handed none.
+    held = build_offline_context(object(), {})
+    context = PresentationContext(
+        object(),
+        ambient=MappingProxyType({"request": None, "view": None}),
+        call_context={"request": held.request, "view": held.view},
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["request_seen"] is held.request
+    assert payload["view_seen"] is held.view
+
+
+def test_the_offline_view_s_action_is_the_call_context_s() -> None:
+    context = PresentationContext(object(), call_context={"action": "publish"})
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["view_seen"].action == "publish"
+
+
+@pytest.mark.parametrize("action", ["", 5, None], ids=["empty", "not-a-string", "none"])
+def test_an_action_that_is_no_name_leaves_the_offline_view_s_as_it_was(action: Any) -> None:
+    context = PresentationContext(object(), call_context={"action": action})
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["view_seen"].action is None
+
+
+def test_a_carried_view_s_action_is_never_overwritten() -> None:
+    held = build_offline_context(object(), {}, action="role")
+    context = PresentationContext(object(), call_context={"view": held.view, "action": "publish"})
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["view_seen"] is held.view
+    assert payload["view_seen"].action == "role"
+
+
+def test_an_offline_pair_is_built_for_its_own_action_within_one_edge_call() -> None:
+    principal = object()
+    presenter = SerializerPresenter(_Who)
+    token = EDGE_CALL.set(EdgeCallState())
+    try:
+        first = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"action": "publish"})
+        )
+        second = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"action": "archive"})
+        )
+    finally:
+        EDGE_CALL.reset(token)
+
+    assert (first["view_seen"].action, second["view_seen"].action) == ("publish", "archive")
+
+
+class _ReadsTheQuery(serializers.Serializer):
+    """Reads the request's query string and the view's action, tolerating a request DRF never wrapped."""
+
+    name = serializers.CharField()
+    query = serializers.SerializerMethodField()
+    action = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+
+    def get_query(self, obj: Any) -> dict[str, list[str]] | None:
+        query_params = getattr(self.context["request"], "query_params", None)
+        return None if query_params is None else dict(query_params.lists())
+
+    def get_action(self, obj: Any) -> Any:
+        view = self.context["view"]
+        return None if view is None else view.action
+
+    def get_user(self, obj: Any) -> Any:
+        return getattr(self.context["request"], "user", None)
+
+
+def test_a_carried_django_request_is_wrapped_with_the_shapes_as_its_query_string() -> None:
+    principal = object()
+    arrived = RequestFactory().get("/chat/", {"thread": "7"})
+    context = PresentationContext(
+        principal,
+        call_context={"request": arrived, "view": None, "action": "publish"},
+        shapes=MappingProxyType({"fields": ["name"]}),
+    )
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    # The shapes replace the query string of the endpoint the run arrived on.
+    assert payload["query"] == {"fields": ["name"]}
+    assert payload["action"] == "publish"
+    assert payload["user"] is principal
+    # The caller's request is never written to.
+    assert dict(arrived.GET.lists()) == {"thread": ["7"]}
+
+
+def test_a_carried_django_request_under_no_shape_has_an_empty_query_string() -> None:
+    arrived = RequestFactory().get("/chat/", {"thread": "7"})
+    context = PresentationContext(object(), ambient=MappingProxyType({"request": arrived}))
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    assert payload["query"] == {}
+
+
+def test_a_carried_view_is_kept_beside_a_wrapped_django_request() -> None:
+    arrived = RequestFactory().get("/chat/")
+    held = build_offline_context(object(), {}, action="role")
+    context = PresentationContext(
+        object(), call_context={"request": arrived, "view": held.view, "action": "publish"}
+    )
+
+    payload = SerializerPresenter(_ReadsTheQuery).presented(_row(), context)
+
+    assert payload["query"] == {}
+    assert payload["action"] == "role"
+
+
+def test_an_offline_pair_is_built_for_its_own_django_request_within_one_edge_call() -> None:
+    principal = object()
+    presenter = SerializerPresenter(_Who)
+    first_arrived, second_arrived = RequestFactory().get("/a/"), RequestFactory().get("/b/")
+    token = EDGE_CALL.set(EdgeCallState())
+    try:
+        first = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"request": first_arrived})
+        )
+        second = presenter.presented(
+            _row(), PresentationContext(principal, call_context={"request": second_arrived})
+        )
+    finally:
+        EDGE_CALL.reset(token)
+
+    assert (first["request_seen"].path, second["request_seen"].path) == ("/a/", "/b/")

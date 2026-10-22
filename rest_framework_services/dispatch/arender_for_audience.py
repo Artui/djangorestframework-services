@@ -24,6 +24,7 @@ async def arender_for_audience(
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
     view_hooks: ViewHooks | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> Any:
     """Async
     [`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience].
@@ -45,4 +46,5 @@ async def arender_for_audience(
         request=request,
         extras=extras,
         view_hooks=view_hooks,
+        call_context=call_context,
     )

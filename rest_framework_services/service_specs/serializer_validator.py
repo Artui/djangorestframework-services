@@ -36,6 +36,7 @@ from rest_framework_services.service_specs.utils import (
     validator_input,
     write_form_value,
 )
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 
 # What this Validator binds into the call's pool: the bound serializer. A field
 # of that name is the serializer's alone, never a parameter, and a validated key
@@ -80,8 +81,10 @@ class SerializerValidator(Validator):
     - **under the serializer context DRF builds on HTTP**, ``request``,
       ``format`` and ``view``. The ``request`` and ``view`` the call
       registered as pool seeds are the serializer's own, read from
-      ``ValidationContext.ambient`` as the kernel resolved them. A call that
-      registered neither gets an offline request whose ``user`` is the
+      ``ValidationContext.ambient`` as the kernel resolved them, and where a
+      seed is absent or ``None``, the entry of that name in
+      ``ValidationContext.call_context``. A call that carries
+      neither gets an offline request whose ``user`` is the
       principal and whose ``data`` is the arguments, built by
       [`build_offline_context`][rest_framework_services.service_specs.build_offline_context.build_offline_context],
       so a ``CurrentUserDefault`` reads the principal and a field or a
@@ -94,7 +97,8 @@ class SerializerValidator(Validator):
       it layers over (see
       ``serializer_context`` in ``service_specs/utils.py``).
       The callable declares what it reads from the call's pool:
-      ``request``, ``view``, ``user``, a registered seed, or an argument. It is
+      ``request``, ``view``, ``user``, ``call_context``, a registered seed, or
+      an argument. It is
       asked once per call, a ``many`` call's included, except where the call
       builds the serializer twice, for a body the server puts a value into or
       a row a target lookup resolves, and what the callable is handed differs
@@ -173,6 +177,7 @@ class SerializerValidator(Validator):
         lenient: bool = False,
         excluded: frozenset[str] = frozenset(),
         server_owned: frozenset[str] = frozenset(),
+        json_schema_registry: JsonSchemaRegistry | None = None,
     ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
@@ -196,6 +201,9 @@ class SerializerValidator(Validator):
         self.lenient = lenient
         self.excluded = excluded
         self.server_owned = server_owned
+        # The spec's, whose ``fields`` rules declare the fields they match
+        # (test_a_compiled_spec_s_input_fields_take_its_rules).
+        self.json_schema_registry = json_schema_registry
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -237,7 +245,9 @@ class SerializerValidator(Validator):
         walked = Parameters.of(
             *(
                 param
-                for param in input_parameters(describe_serializer(self.serializer))
+                for param in input_parameters(
+                    describe_serializer(self.serializer), registry=self.json_schema_registry
+                )
                 if param.name not in seeded
             )
         )
@@ -482,6 +492,7 @@ class SerializerValidator(Validator):
             arguments,
             view_layers=input_view_layers(),
             provider=self.serializer_context,
+            call_context=context.call_context,
         )
 
 

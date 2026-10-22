@@ -880,7 +880,7 @@ python manage.py runserver
 | Python | 3.10 – 3.14 |
 | Django | 4.2, 5.0, 5.1, 5.2, 6.0 |
 | DRF | ≥ 3.14 |
-| django-service-specs | ≥ 0.8.0 |
+| django-service-specs | ≥ 0.14.0 |
 
 CI runs the full Python × Django matrix with 100% coverage gating.
 

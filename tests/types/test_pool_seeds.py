@@ -18,9 +18,21 @@ from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEED
 
 def test_the_reserved_set_is_the_kernels() -> None:
     """``result`` and ``queryset`` join it; ``request`` and ``serializer`` leave
-    it, because they are an HTTP adapter's values and not the kernel's."""
+    it, because they are an HTTP adapter's values and not the kernel's; the
+    call's ``call_context`` is the kernel's."""
     assert (
-        frozenset({"user", "data", "instance", "collection", "result", "queryset", "progress"})
+        frozenset(
+            {
+                "user",
+                "data",
+                "instance",
+                "collection",
+                "result",
+                "queryset",
+                "progress",
+                "call_context",
+            }
+        )
         == RESERVED_POOL_SEEDS
     )
 

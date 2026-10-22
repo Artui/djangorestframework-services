@@ -22,6 +22,7 @@ async def arender_spec_output(
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
     view_hooks: ViewHooks | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> Any:
     """Async
     [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
@@ -66,6 +67,7 @@ async def arender_spec_output(
         request=request,
         extras=extras,
         view_hooks=view_hooks,
+        call_context=call_context,
     )
 
 

@@ -8,6 +8,7 @@ clarity.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from invoices.models import Invoice
 from rest_framework_services import (
@@ -96,3 +97,45 @@ def annotate_invoice(*, instance: Invoice, data: dict[str, str]) -> Invoice:
     exactly those.
     """
     return update_from_input(instance, data).instance
+
+
+def set_payment_terms(*, instance: Invoice, data: dict[str, int]) -> Invoice:
+    """Custom action: record the days the customer has to pay, as a note."""
+    line = f"[terms] net {data['days']}"
+    instance.notes = f"{instance.notes}\n{line}".strip()
+    instance.save(update_fields=["notes", "updated_at"])
+    return instance
+
+
+def record_operation(*, instance: Invoice, operation: str) -> Invoice:
+    """Custom action: note which operation touched the invoice.
+
+    ``operation`` is no input and no URL capture: the spec's ``kwargs`` provider
+    reads it off the call's context.
+    """
+    line = f"[operation] {operation}"
+    instance.notes = f"{instance.notes}\n{line}".strip()
+    instance.save(update_fields=["notes", "updated_at"])
+    return instance
+
+
+def void_drafts() -> list[Invoice]:
+    """Void every draft and return the rows it voided.
+
+    The spec that runs it declares a list output with no selector, so the rows
+    returned here are the rows presented: nothing is read again.
+    """
+    drafts = list(Invoice.objects.filter(status=Invoice.STATUS_DRAFT))
+    for invoice in drafts:
+        invoice.status = Invoice.STATUS_VOID
+        invoice.save(update_fields=["status", "updated_at"])
+    return drafts
+
+
+def void_drafts_summary() -> dict[str, Any]:
+    """Void every draft but return a count, which is no set of rows.
+
+    Run under the same list declaration as ``void_drafts``, the return is
+    refused as the author's error, after the write.
+    """
+    return {"voided": len(void_drafts())}

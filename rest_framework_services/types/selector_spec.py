@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
 from django.core.exceptions import ImproperlyConfigured
@@ -16,6 +16,7 @@ from rest_framework.request import Request
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -242,6 +243,33 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             compile without an ``output_serializer``. On a service spec's
             ``output_selector_spec`` the service spec's own declaration is
             layered over this one.
+        json_schema_registry: The project's ``JsonSchemaRegistry``, which
+            describes this spec's schemas. drfs'
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+            reads it when no ``registry=`` is passed, and a passed one wins.
+            The compile reads its ``fields`` rules where it walks the input
+            and output serializers, and its ``python_types`` rules where it
+            reads a callable's annotations: a selector's, a target lookup's and
+            a spread service's parameters.
+            As a ``ServiceSpec``'s target lookup or ``output_selector_spec``,
+            this spec reads its own, else the service spec's. An affordance is
+            a spec of its own and reads only its own.
+            A matched fragment reaches the compiled spec split in two: the
+            keywords a ``Parameter`` or ``OutputField`` spells set those
+            fields and are checked off HTTP, and the rest is
+            ``json_schema_extra``, advertised and not checked. What the kernel
+            would refuse is dropped from the compiled spec and kept by drfs'
+            own builders, so a registry never stops a compile: a ``format``
+            outside the kernel's four (``decimal``, ``date-time``, ``date``,
+            ``uuid``), or a keyword the field's type has no room for. Its ``filters``
+            rules never reach the compiled spec, since the kernel builds a
+            ``filter_set``'s Parameters itself. Named for the keyword drf-mcp's
+            server and the agent toolsets take the same object by, since none
+            of the three naming rules fits: it wraps no Django or DRF concept,
+            configures no serialization phase and resolves no nested spec. A
+            field rather than a setting because it is an object, and because
+            the compile caches per spec, so a setting read at compile could not
+            change a spec already compiled.
     """
 
     kind: SelectorKind
@@ -297,6 +325,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # Naming: see the ``ServiceSpec.reads`` field.
     reads: Sequence[UrlKwarg | QueryParam] = ()
     field_audiences: Mapping[str, FieldMarking] | None = None
+    # Naming and the hash: see ``ServiceSpec.json_schema_registry``.
+    json_schema_registry: JsonSchemaRegistry | None = field(default=None, hash=False)
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="SelectorSpec")

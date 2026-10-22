@@ -53,6 +53,7 @@ def dispatch_spec(
     filter_data: Mapping[str, Any] | None = None,
     many_as_argument: bool = False,
     partial: bool | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> DispatchResult:
     """Run ``spec`` through the kernel's ``dispatch``, as DRF would, returning its
     [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
@@ -177,6 +178,19 @@ def dispatch_spec(
             no-op on every other spec.
         partial: The request's partial flag (a ``PATCH``); ``None`` reads the
             spec's own.
+        call_context: The call's context, the kernel's ``call_context``: one
+            plain ``dict`` the caller owns for its own scope, handed as the
+            same object, never a copy, to every stage naming
+            ``call_context`` - the spec's ``kwargs`` provider and
+            ``input_data``, which this edge calls itself, a target lookup, and
+            every stage of the kernel's ``dispatch``. ``None`` is a fresh dict
+            for this call alone. The edge sets ``request`` and ``view`` to the
+            ones passed here, ``format`` to ``None``, and ``action``, the
+            operation's name, to ``view.action`` where ``view`` has a non-empty
+            one and to ``None`` otherwise, each only where the dict has no
+            entry of that name, so a caller's own entries win. A
+            view passes none, so a context per dispatch is a context per
+            request.
 
     Returns:
         The kernel's ``DispatchResult``. A required row that does not exist is
@@ -222,6 +236,7 @@ def dispatch_spec(
             filter_data=filter_data,
             many_as_argument=many_as_argument,
             partial=partial,
+            call_context=call_context,
             state=state,
         )
         if isinstance(prepared, DispatchResult):

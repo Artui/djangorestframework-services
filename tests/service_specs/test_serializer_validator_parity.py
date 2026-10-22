@@ -25,9 +25,9 @@ touches a name or ``required``:
   walk states it only on a choice field's ``oneOf``.
 - **Titles.** drfs writes an author's ``label`` as ``title``; a Parameter has no
   label, so the kernel writes none. Choice labels survive in both, as titles.
-- **Formats.** The kernel has three (``decimal``, ``date``, ``date-time``);
-  drfs also writes ``time``, ``uuid``, ``email`` and ``uri``, which the kernel
-  states as a plain string. Where drfs writes ``date`` or ``date-time`` for a
+- **Formats.** The walk states three (``decimal``, ``date``, ``date-time``)
+  of the kernel's four, leaving ``uuid`` unstated; drfs also writes ``time``,
+  ``uuid``, ``email`` and ``uri``, which the kernel states as a plain string. Where drfs writes ``date`` or ``date-time`` for a
   field reading formats other than ISO 8601, and ``decimal`` for a localized
   decimal, the kernel states no format and no type respectively: its check
   runs in front of the field, so it may not refuse what the field reads
@@ -43,10 +43,13 @@ touches a name or ``required``:
 - **A dataclass's rows** are described here, as the ``DataclassSerializer``
   that validates them reads them; drfs' annotation walk writes them as
   ``items: {}``. The comparison stops where drfs stops describing.
-- **Consumer rules.** drfs applies a ``JsonSchemaRegistry`` and drf-spectacular's
-  ``extend_schema_field`` and ``extend_schema_serializer`` overrides, including
-  ``exclude_fields``, which can remove a property; Parameters carry none of
-  them, so a serializer using them is described as declared.
+- **Consumer rules.** A ``JsonSchemaRegistry``'s ``fields`` rules reach both,
+  and a registered field's node agrees in both but for a ``format`` outside
+  the kernel's four, which drfs advertises and the kernel drops
+  (test_a_registered_field_s_node_agrees_but_for_a_format_the_kernel_lacks).
+  drf-spectacular's ``extend_schema_field`` and ``extend_schema_serializer``
+  overrides, including ``exclude_fields``, which can remove a property, reach
+  drfs alone, so a serializer using them is described here as declared.
 - **Depth.** drfs' ``max_depth`` has no counterpart; the recursion allowance is
   the same four appearances in both, so a recursive serializer truncates at
   the same node.
@@ -66,6 +69,8 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
+from rest_framework_services.service_specs.utils import describe_serializer, input_parameters
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 from tests.testapp.models import Post
 
 
@@ -216,3 +221,48 @@ def test_a_dataclass_s_rows_are_described_where_drfs_stops() -> None:
     drfs = _objects(serializer_to_json_schema(_Order))
     assert set(kernel) - set(drfs) == {"rows[]"}
     assert kernel["rows[]"]["required"] == ["title"]
+
+
+class _MoneyField(serializers.CharField): ...
+
+
+class _CountField(serializers.IntegerField): ...
+
+
+class _Registered(serializers.Serializer):
+    amount = _MoneyField(help_text="What it costs.")
+    count = _CountField()
+    note = serializers.CharField(required=False)
+
+
+_MONEY = {
+    "type": "string",
+    "format": "money",
+    "pattern": "^[0-9]+$",
+    "minLength": 1,
+    "maxLength": 12,
+    "description": "Cents, as digits.",
+}
+_COUNT = {"type": "integer", "minimum": 0, "maximum": 99, "title": "Count"}
+_REGISTRY = JsonSchemaRegistry(fields=((_MoneyField, _MONEY), (_CountField, _COUNT)))
+
+
+def test_a_registered_field_s_node_agrees_but_for_a_format_the_kernel_lacks() -> None:
+    kernel = parameters_schema(
+        input_parameters(describe_serializer(_Registered), registry=_REGISTRY),
+        unknown_arguments=UnknownArguments.IGNORE,
+    )
+    drfs = serializer_to_json_schema(_Registered, registry=_REGISTRY)
+    assert kernel["required"] == drfs["required"] == ["amount", "count"]
+    ours, theirs = kernel["properties"], drfs["properties"]
+    # The one difference: ``money`` is no format the kernel has, so the compiled
+    # spec drops it, and drfs' own schema keeps advertising it.
+    assert theirs["amount"]["format"] == "money"
+    assert "format" not in ours["amount"]
+    assert ours["amount"] == {
+        key: value for key, value in theirs["amount"].items() if key != "format"
+    }
+    # The field's own help text is the description in both, over the rule's.
+    assert ours["amount"]["description"] == "What it costs."
+    assert ours["count"] == theirs["count"] == _COUNT
+    assert ours["note"] == theirs["note"]
