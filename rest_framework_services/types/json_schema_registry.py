@@ -33,6 +33,14 @@ class JsonSchemaRegistry:
         )
         schema = serializer_to_json_schema(MySerializer, registry=registry)
 
+    That fragment describes every ``MoneyField`` as a string of ``format:
+    "money"`` in the schemas drfs' own helpers build. Declared on a spec as
+    ``json_schema_registry=``, the same rule also reaches the spec as it
+    compiles for the kernel, where only what the kernel can state is kept: the
+    field is a string there and ``format: "money"``, which is none of the
+    kernel's four formats, is dropped
+    (test_the_compiled_schema_agrees_with_drfs_but_for_the_dropped_format).
+
     Attributes:
         fields: DRF ``Field`` subclasses, matched by ``isinstance`` when walking
             a serializer (``serializer_to_json_schema``, and the input side of
@@ -41,7 +49,9 @@ class JsonSchemaRegistry:
             ``isinstance`` when walking a ``FilterSet``
             (``filterset_to_json_schema``).
         python_types: Bare Python types, matched by *identity* when walking a
-            dataclass's field annotations.
+            dataclass's field annotations, and, from a spec's
+            ``json_schema_registry``, a selector's, target lookup's or spread
+            service's annotations as the spec compiles.
     """
 
     fields: tuple[_Rule, ...] = ()

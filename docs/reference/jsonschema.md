@@ -468,6 +468,70 @@ the obvious answer and it is refused deliberately: most MCP clients reject a too
 schema containing a reference outright, so it would trade a size problem for a
 compatibility one. Every schema these helpers emit is flat and self-contained.
 
+## A registry on the spec
+
+A registry passed as `registry=` reaches one call. Declared on the spec as
+`json_schema_registry=`, it travels with the spec, to every helper that
+describes it and to the spec as it compiles for the kernel:
+
+```python
+registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+    fields=[(MoneyField, {"type": "string", "format": "money", "pattern": r"^\d+$"})],
+)
+
+charge = ServiceSpec(
+    service=charge_card,
+    input_serializer=ChargeSerializer,
+    json_schema_registry=registry,
+)
+
+spec_to_json_schema(charge)  # reads the spec's registry
+spec_to_json_schema(charge, registry=DEFAULT_JSON_SCHEMA_REGISTRY)  # no rules
+```
+
+**A `registry=` passed to a helper wins over the spec's**, the empty default
+included, so a caller can still describe a spec without its rules. A spec that
+declares none reads the empty default, as it always did.
+
+**A nested spec reads its own, else the outer spec's.** A service spec's
+target lookup and output selector spec each read their own registry, and the
+service spec's where they declare none. An affordance is a spec of its own and
+reads only its own.
+
+**In the compile, the keywords the kernel can state become checks.** `fields`
+rules are read where the input and output serializers are walked, and
+`python_types` rules where a callable's annotations are. A keyword a kernel
+`Parameter` or `OutputField` spells sets that field, and is then enforced off
+HTTP as a built-in field's would be: `type`, `format`, `enum`, a bare `items`,
+and on an input the bounds (`minimum`, `maximum`, `minItems`, `maxItems`) and
+`description`, on an output `title`. Every other keyword, `pattern` above
+among them, is advertised in the compiled schema and not enforced there.
+
+**What the kernel cannot state is dropped from the compiled spec, never
+refused.** A `format` outside the kernel's four (`decimal`, `date-time`, `date`,
+`uuid`) goes, so `format: "money"` above is in every schema drfs' helpers build
+and absent from the compiled one. So does a keyword the kernel would refuse for
+the field's type, such as a `format` with no `type` or a `minimum` on a string,
+and a value that is not JSON. The kernel decides by refusing, so a registry
+`spec_to_json_schema` accepts never stops a spec compiling, and drfs' own
+helpers keep describing the whole fragment.
+
+**`filters` rules describe drfs' schema alone.** The kernel builds a
+`filter_set`'s parameters itself, so a `filters` rule never reaches the
+compiled spec.
+
+**A `python_types` rule on a spec's registry types its reflected reads.** A
+selector's, a target lookup's and a spread service's annotations are matched
+by identity, and a read a rule types is then checked as an annotation is. A
+class no rule names stays untyped, so this is opt-in: it starts when a spec
+declares the field.
+
+**A dataclass input is the one place the two routes read different rules:**
+drfs' helpers match its annotations against `python_types`, while the compile
+walks the serializer built from it and matches its fields against `fields`, so
+a rule meant for both is registered twice, on the type and on the field class
+it is read through (a `DecimalField` for a `Decimal`).
+
 ## `JsonSchemaRegistry`
 
 ::: rest_framework_services.types.json_schema_registry.JsonSchemaRegistry

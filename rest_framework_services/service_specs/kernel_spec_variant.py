@@ -173,6 +173,10 @@ def _compile(
             # Carried over, or a live view's call hands a hidden parameter the
             # client's value (test_a_client_value_for_a_hidden_parameter_stays_in_data_over_http).
             server_owned=validator.server_owned,
+            # Carried over, or an ``excluded`` compile off HTTP states its fields
+            # without the spec's rules
+            # (test_an_excluded_variant_keeps_the_spec_s_rules).
+            json_schema_registry=validator.json_schema_registry,
         )
     # The kernel reads an absent maximum as its own cap, so the largest list
     # Python can hold stands for none
@@ -242,7 +246,13 @@ def _relaxed(spec: Any, compiled: Any) -> dict[str, Any]:
 
 
 def _optional(reads: Parameters, names: frozenset[str]) -> Parameters | None:
-    """``reads`` with each required one ``names`` names made optional, or ``None`` where none is."""
+    """``reads`` with each required one ``names`` names made optional, or ``None`` where none is.
+
+    Only ``required`` moves: the rest of each read stays as compiled, the type
+    and keywords a spec's ``json_schema_registry`` gave it included
+    (test_a_relaxed_selector_read_keeps_the_registry_s_shape,
+    test_a_relaxed_target_lookup_read_keeps_the_registry_s_shape).
+    """
     if not any(parameter.required and parameter.name in names for parameter in reads):
         return None
     return Parameters(

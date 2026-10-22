@@ -28,13 +28,14 @@ import dataclasses
 import inspect
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db import DatabaseError
 from django.db.models import QuerySet
 from django.http import HttpRequest, QueryDict
 from django.utils.translation import gettext
+from django_service_specs.output.output import OutputField
 from django_service_specs.parameters.coded_message import CodedMessage
 from django_service_specs.parameters.invalid_arguments import (
     InvalidArguments as KernelInvalidArguments,
@@ -49,6 +50,7 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 
@@ -1097,31 +1099,53 @@ def is_input(field: serializers.Field) -> bool:
 
 
 def input_parameters(
-    serializer: serializers.Serializer, path: tuple[type[Any], ...] = ()
+    serializer: serializers.Serializer,
+    path: tuple[type[Any], ...] = (),
+    *,
+    registry: JsonSchemaRegistry | None = None,
 ) -> Parameters:
     """What ``serializer`` takes, as Parameters, in field order. Never queries.
 
     ``path`` carries the serializer classes being described, innermost last,
     which is how a recursive declaration is bounded: see
     ``MAX_SERIALIZER_APPEARANCES``. A caller leaves it empty.
+
+    ``registry`` is the spec's ``JsonSchemaRegistry``: a field one of its
+    ``fields`` rules matches, at any depth, is declared by that rule's fragment
+    (``input_parameter``).
     """
     path = (*path, type(serializer))
     return Parameters(
         tuple(
-            input_parameter(name, field, path)
+            input_parameter(name, field, path, registry=registry)
             for name, field in serializer.fields.items()
             if is_input(field)
         )
     )
 
 
-def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], ...]) -> Parameter:
+def input_parameter(
+    name: str,
+    field: serializers.Field,
+    path: tuple[type[Any], ...],
+    *,
+    registry: JsonSchemaRegistry | None = None,
+) -> Parameter:
     """One input field as a Parameter, named for the wire.
 
     ``required`` is the field's own, which DRF already reads from a default
     and from ``read_only``; ``nullable`` is its ``allow_null``; ``help`` its
     ``help_text``, rendered as a string in the language active now. A default
     is reported only when it is a literal (see ``literal_default``).
+
+    A field a ``registry`` rule matches is declared by the rule's fragment
+    before any built-in reading, a nested serializer's included, as drfs'
+    ``serializer_to_json_schema`` describes it
+    (test_a_rule_wins_over_the_walk_of_a_nested_serializer). The fragment is
+    split by ``fragment_keywords``; the field's own ``required`` and
+    ``default`` stand, and its ``allow_null`` and ``help_text`` stand beside
+    the fragment's, as drfs' walk writes them over it
+    (test_the_field_s_own_help_label_and_null_stand_beside_the_fragment).
     """
     common: dict[str, Any] = {
         "required": field.required,
@@ -1129,25 +1153,38 @@ def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], 
         "default": literal_default(field),
         "help": str(field.help_text) if field.help_text else None,
     }
+    fragment = registered_fragment(registry, field)
+    if fragment is not None:
+        declared = fragment_keywords(fragment, output=False)
+        declared.update(
+            common,
+            nullable=common["nullable"] or declared.get("nullable", False),
+            help=common["help"] or declared.get("help"),
+        )
+        return Parameter(name, declared.pop("type"), **declared)
     if isinstance(field, serializers.ListSerializer):
         # ``many=True`` on a nested serializer: an array of rows. The wrapper is
         # no serializer level of its own, so it costs no appearance.
         return Parameter(
             name,
             "array",
-            items=_rows(field.child, path),
+            items=_rows(field.child, path, registry),
             **_lengths(field),
             **common,
         )
     if isinstance(field, serializers.Serializer):
         if _truncated(field, path):
             return Parameter(name, "object", **common)
-        return Parameter(name, "object", fields=input_parameters(field, path), **common)
+        return Parameter(
+            name, "object", fields=input_parameters(field, path, registry=registry), **common
+        )
     # One branch to coverage, each class held by its own tests:
     # test_a_list_field_declares_its_element_and_its_length and
     # test_a_multiple_choice_field_is_an_array_whose_elements_are_the_choices.
     if isinstance(field, serializers.ListField | serializers.MultipleChoiceField):
-        return Parameter(name, "array", **_element(field, path), **_lengths(field), **common)
+        return Parameter(
+            name, "array", **_element(field, path, registry), **_lengths(field), **common
+        )
     if isinstance(field, relations.ManyRelatedField):
         # A list of keys, each read as its related field reads one: from a
         # string as readily as from a number, so the element declares no type.
@@ -1166,6 +1203,170 @@ def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], 
         choice_labels=choices.labels,
         **common,
     )
+
+
+def registered_fragment(
+    registry: JsonSchemaRegistry | None, field: serializers.Field
+) -> Mapping[str, Any] | None:
+    """The fragment of the first ``registry.fields`` rule ``field`` is an instance of, or ``None``.
+
+    First match wins, as in drfs' own serializer walk. Held by
+    test_a_rule_wins_over_the_walk_of_a_nested_serializer.
+    """
+    if registry is None:
+        return None
+    for rule_type, fragment in registry.fields:
+        if isinstance(field, rule_type):
+            return fragment
+    return None
+
+
+_JSON_TYPES: Final = frozenset({"string", "integer", "number", "boolean", "array", "object"})
+
+
+def fragment_keywords(fragment: Mapping[str, Any], *, output: bool) -> dict[str, Any]:
+    """A registry fragment as keyword arguments for a ``Parameter``, or an ``OutputField`` when ``output``.
+
+    The compiled spec takes what the kernel can state of the fragment and drops
+    the rest, so a registry drfs' own builders describe never stops a spec
+    compiling, and those builders keep describing the whole fragment. Split in
+    two, each class held by its tests in ``test_registered_fragments``:
+
+    - **The keywords a field spells set it**
+      (test_a_keyword_a_parameter_field_spells_sets_that_field,
+      test_a_keyword_an_output_field_spells_sets_that_field): ``type``, a list
+      of one type and ``"null"`` as ``nullable``; ``format``; ``enum`` as
+      ``choices``, typed by its values when the fragment names no type; an
+      ``items`` naming a bare type; on a ``Parameter`` the bounds
+      (``minimum``, ``maximum``, ``minItems`` and ``maxItems`` as ``min_length``
+      and ``max_length``) and ``description`` as ``help``; on an
+      ``OutputField`` ``title`` as ``label``. The kernel's shape check then
+      enforces them off HTTP.
+    - **The rest is ``json_schema_extra``**, advertised and never enforced
+      (test_a_keyword_no_parameter_field_spells_is_json_schema_extra,
+      test_a_keyword_no_output_field_spells_is_json_schema_extra).
+
+    **The kernel decides what is dropped**, by refusing it, so nothing here
+    restates its rules: each keyword a field spells, in the order above, is
+    kept only where the kernel builds the declaration with it beside those
+    kept before it (test_a_bound_the_format_makes_legal_is_kept), and each
+    other keyword only where the kernel takes it in ``json_schema_extra``
+    (the ``kept-beside-a-refused-one`` case of
+    test_what_the_kernel_refuses_is_dropped_and_the_rest_kept, whose every case
+    asserts the kernel refuses what was dropped). So a keyword that contradicts
+    the type goes - a ``format`` with no type, ``minimum`` on a string, a
+    ``maximum`` below the ``minimum`` kept - as does a ``format`` outside the
+    kernel's four (test_a_format_outside_the_kernel_s_four_is_dropped), a value
+    that is not JSON, and a keyword the kernel's tables refuse in
+    ``json_schema_extra`` that no field takes
+    (test_every_keyword_the_kernel_refuses_is_set_or_dropped). A list or a
+    mapping where the kernel takes a name is no name, and is dropped before
+    the kernel sees it (``_named``, test_a_format_that_is_no_name_is_dropped).
+
+    The result always carries ``type``, ``any`` where the fragment names none
+    the kernel takes.
+    """
+    declared: dict[str, Any] = {}
+    kind = fragment.get("type")
+    # One arc to coverage; each condition is held by its case of
+    # test_a_fragment_the_kernel_cannot_type_declares_any: ``two-types`` without
+    # the ``"null"`` check and ``two-types-and-null`` without the length. The
+    # ``isinstance`` keeps ``in`` off a string or ``None``.
+    if isinstance(kind, list) and "null" in kind and len(kind) == 2:
+        declared["nullable"] = True
+        kind = next(member for member in kind if member != "null")
+    enum = fragment.get("enum")
+    # A declared type stands over the values' (the ``enum-under-its-type`` case
+    # of test_a_keyword_a_parameter_field_spells_sets_that_field).
+    if kind is None and isinstance(enum, list):
+        kind = _enum_type(enum)
+    declared["type"] = kind if _named(kind, _JSON_TYPES) else "any"
+    stated: list[tuple[str, Any]] = []
+    items = fragment.get("items")
+    # Only a bare element type: a Parameter's ``items`` is a type name, and an
+    # element's own keywords have no seat on it. One arc to coverage, each
+    # condition held by a case of test_a_fragment_s_items_saying_more_than_a_type_is_dropped:
+    # the mapping by ``a-tuple-schema``, its keys by ``more-than-a-type``, and
+    # the JSON type by ``a-kernel-only-type``, which the kernel itself takes.
+    if (
+        isinstance(items, Mapping)
+        and items.keys() == {"type"}
+        and _named(items["type"], _JSON_TYPES)
+    ):
+        stated.append(("items", items["type"]))
+    # The kernel names the formats it takes and refuses the rest; only a
+    # string can be asked about, as it hashes the name
+    # (test_a_format_that_is_no_name_is_dropped).
+    if isinstance(fragment.get("format"), str):
+        stated.append(("format", fragment["format"]))
+    if isinstance(enum, list):
+        choices = tuple((value, str(value)) for value in enum) if output else tuple(enum)
+        stated.append(("choices", choices))
+    keywords = _OUTPUT_FIELDS if output else _PARAMETER_FIELDS
+    stated.extend((name, fragment[keyword]) for keyword, name in keywords if keyword in fragment)
+    declaration = OutputField if output else Parameter
+    for name, value in stated:
+        if _states(declaration, {**declared, name: value}):
+            declared[name] = value
+    # One keyword at a time, so the one the kernel refuses is the one dropped
+    # (``kept-beside-a-refused-one`` of
+    # test_what_the_kernel_refuses_is_dropped_and_the_rest_kept); the kernel
+    # judges each keyword of ``json_schema_extra`` on its own.
+    extra = {
+        key: value
+        for key, value in fragment.items()
+        if _states(declaration, {**declared, "json_schema_extra": {key: value}})
+    }
+    if extra:
+        declared["json_schema_extra"] = extra
+    return declared
+
+
+# The fragment keywords a field of each declaration spells beyond ``type``,
+# ``format``, ``enum`` and ``items``, with the field each sets.
+_PARAMETER_FIELDS: Final = (
+    ("minimum", "minimum"),
+    ("maximum", "maximum"),
+    ("minItems", "min_length"),
+    ("maxItems", "max_length"),
+    ("description", "help"),
+)
+_OUTPUT_FIELDS: Final = (("title", "label"),)
+
+
+def _states(declaration: type[Parameter] | type[OutputField], keywords: dict[str, Any]) -> bool:
+    """Whether the kernel builds ``declaration`` from ``keywords``: its own refusal is the rule."""
+    try:
+        declaration("registered", **keywords)
+    except ImproperlyConfigured:
+        return False
+    return True
+
+
+def _named(value: Any, names: frozenset[str]) -> bool:
+    """Whether ``value`` is one of ``names``; a list or a mapping, which JSON Schema allows in places, is none.
+
+    The ``isinstance`` keeps an unhashable value out of the set lookup: held by
+    the ``two-types`` case of test_a_fragment_the_kernel_cannot_type_declares_any.
+    """
+    return isinstance(value, str) and value in names
+
+
+def _enum_type(values: list[Any]) -> str | None:
+    """The one JSON type ``values`` share, or ``None``; ``bool`` before ``int``, which it subclasses."""
+    kinds = {
+        "boolean"
+        if isinstance(value, bool)
+        else "integer"
+        if isinstance(value, int)
+        else "number"
+        if isinstance(value, float)
+        else "string"
+        if isinstance(value, str)
+        else None
+        for value in values
+    }
+    return kinds.pop() if len(kinds) == 1 else None
 
 
 def field_type(field: serializers.Field) -> tuple[str, str | None]:
@@ -1319,13 +1520,19 @@ def _truncated(serializer: serializers.Serializer, path: tuple[type[Any], ...]) 
     return path.count(type(serializer)) >= MAX_SERIALIZER_APPEARANCES
 
 
-def _rows(child: Any, path: tuple[type[Any], ...]) -> Parameters | str:
+def _rows(
+    child: Any, path: tuple[type[Any], ...], registry: JsonSchemaRegistry | None
+) -> Parameters | str:
     """A list's rows: the child serializer's Parameters, or an open object past the bound."""
-    return "object" if _truncated(child, path) else input_parameters(child, path)
+    if _truncated(child, path):
+        return "object"
+    return input_parameters(child, path, registry=registry)
 
 
 def _element(
-    field: serializers.ListField | serializers.MultipleChoiceField, path: tuple[type[Any], ...]
+    field: serializers.ListField | serializers.MultipleChoiceField,
+    path: tuple[type[Any], ...],
+    registry: JsonSchemaRegistry | None,
 ) -> dict[str, Any]:
     """What a list's element declares, as the array's own keywords.
 
@@ -1340,8 +1547,15 @@ def _element(
             return {}
         return {"items": own.type, "choices": own.values, "choice_labels": own.labels}
     child: Any = field.child
+    fragment = registered_fragment(registry, child)
+    if fragment is not None:
+        # A registered element is typed by its rule, and only typed: the
+        # array's own keywords describe the array, not each element
+        # (test_a_registered_list_element_is_typed_by_its_rule).
+        element = fragment_keywords(fragment, output=False)["type"]
+        return {} if element == "any" else {"items": element}
     if isinstance(child, serializers.Serializer):
-        return {"items": _rows(child, path)}
+        return {"items": _rows(child, path, registry)}
     # One branch to coverage, each class held by its own case of
     # test_a_list_field_s_element_type: [list] and [list-of-rows].
     if isinstance(child, serializers.ListField | serializers.ListSerializer):

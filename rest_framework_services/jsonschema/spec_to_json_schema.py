@@ -54,7 +54,7 @@ def spec_to_json_schema(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
     phase: Literal["input", "output"] = "input",
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    registry: JsonSchemaRegistry | None = None,
     max_depth: int | None = None,
     supplied: frozenset[str] | None = None,
     argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
@@ -65,6 +65,17 @@ def spec_to_json_schema(
     instead of reaching into spec internals itself. ``registry`` supplies consumer rules
     for custom field / filter / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
+    Passed, it describes every part of the schema, the empty
+    ``DEFAULT_JSON_SCHEMA_REGISTRY`` included
+    (test_a_passed_registry_wins_over_the_spec_s,
+    test_a_passed_registry_wins_over_a_nested_spec_s). Left out, the spec's own
+    ``json_schema_registry`` describes it (test_a_service_spec_s_input_reads_its_registry,
+    test_a_selector_spec_s_reads_take_its_python_type_rules), and a ``ServiceSpec``'s
+    output, which its ``output_selector_spec``'s serializer describes, reads that
+    nested spec's registry, else the service spec's
+    (test_an_output_selector_spec_reads_its_own_registry,
+    test_an_output_selector_spec_with_none_reads_the_outer_spec_s), as the
+    compile does. With neither, the empty default.
 
     ``phase="input"`` (default) returns the input-argument schema:
 
@@ -234,7 +245,7 @@ def spec_to_json_schema(
     """
     fragment: Mapping[str, Any] | None = _metadata_fragment(spec, phase)
     derived: dict[str, Any] | None = (
-        _input_schema(spec, registry, max_depth, supplied, argument_binding)
+        _input_schema(spec, _registry(registry, spec), max_depth, supplied, argument_binding)
         if phase == "input"
         else _output_schema(spec, registry, max_depth)
     )
@@ -415,9 +426,27 @@ def _parameter_schema(
     return schema
 
 
+def _registry(
+    passed: JsonSchemaRegistry | None, *specs: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
+) -> JsonSchemaRegistry:
+    """The registry a schema is described by: the passed one, else the first of ``specs`` declaring one.
+
+    ``specs`` runs innermost first, so a nested spec's own registry comes before
+    its service spec's. A passed one wins whatever the specs declare
+    (test_a_passed_registry_wins_over_the_spec_s), and without one the specs are
+    read (test_a_service_spec_s_input_reads_its_registry).
+    """
+    if passed is not None:
+        return passed
+    for spec in specs:
+        if spec.json_schema_registry is not None:
+            return spec.json_schema_registry
+    return DEFAULT_JSON_SCHEMA_REGISTRY
+
+
 def _output_schema(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
-    registry: JsonSchemaRegistry,
+    passed: JsonSchemaRegistry | None,
     max_depth: int | None,
 ) -> dict[str, Any] | None:
     if isinstance(spec, ServiceSpec):
@@ -425,8 +454,14 @@ def _output_schema(
         if nested is None:
             return None
         declared = (nested.output_serializer, _rendered_kind(spec, nested), nested.affordances)
+        # The nested spec's serializer describes the output, so its registry comes
+        # first (test_an_output_selector_spec_reads_its_own_registry), and the
+        # service spec's stands in for none
+        # (test_an_output_selector_spec_with_none_reads_the_outer_spec_s).
+        registry = _registry(passed, nested, spec)
     else:
         declared = (spec.output_serializer, spec.kind, spec.affordances)
+        registry = _registry(passed, spec)
     output_serializer, kind, affordances = declared
     schema = output_to_json_schema(
         output_serializer,

@@ -36,6 +36,7 @@ from rest_framework_services.service_specs.utils import (
     validator_input,
     write_form_value,
 )
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 
 # What this Validator binds into the call's pool: the bound serializer. A field
 # of that name is the serializer's alone, never a parameter, and a validated key
@@ -176,6 +177,7 @@ class SerializerValidator(Validator):
         lenient: bool = False,
         excluded: frozenset[str] = frozenset(),
         server_owned: frozenset[str] = frozenset(),
+        json_schema_registry: JsonSchemaRegistry | None = None,
     ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
@@ -199,6 +201,9 @@ class SerializerValidator(Validator):
         self.lenient = lenient
         self.excluded = excluded
         self.server_owned = server_owned
+        # The spec's, whose ``fields`` rules declare the fields they match
+        # (test_a_compiled_spec_s_input_fields_take_its_rules).
+        self.json_schema_registry = json_schema_registry
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -240,7 +245,9 @@ class SerializerValidator(Validator):
         walked = Parameters.of(
             *(
                 param
-                for param in input_parameters(describe_serializer(self.serializer))
+                for param in input_parameters(
+                    describe_serializer(self.serializer), registry=self.json_schema_registry
+                )
                 if param.name not in seeded
             )
         )
