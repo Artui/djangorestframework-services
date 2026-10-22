@@ -2084,7 +2084,7 @@ through the second. Each builds the context in the same four layers:</p>
 <tr>
 <td>1. DRF default</td>
 <td>the <code>view</code>'s <code>get_serializer_context()</code></td>
-<td>the same for a registered <code>view</code> seed, else DRF's three keys, from the registered <code>request</code> or an offline pair built for the principal</td>
+<td>the same for a registered <code>view</code> seed or the call context's <code>view</code>, else DRF's three keys, from the registered <code>request</code>, the call context's <code>request</code> (a Django <code>HttpRequest</code> wrapped as a DRF <code>Request</code>), or an offline pair built for the principal</td>
 </tr>
 <tr>
 <td>2. and 3. View hooks</td>
@@ -2102,6 +2102,9 @@ through the second. Each builds the context in the same four layers:</p>
 <ul>
 <li><code>request</code>, <code>view</code> and <code>user</code> (the principal), the call's own, which no
   argument a client sends can stand in for;</li>
+<li><code>call_context</code>, the one dict the call carries from the transport to every
+  stage, holding <code>request</code>, <code>view</code>, <code>format</code> and <code>action</code>
+  (see <a href="../../reference/dispatch/">Dispatch</a>);</li>
 <li>any pool seed the call registered;</li>
 <li>on input, an argument by name, beneath everything above;</li>
 <li>on output, the value being rendered: <code>result</code> for a service's output,

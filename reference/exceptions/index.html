@@ -1996,8 +1996,8 @@ check swallows it.</p>
       dataclass
   " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> conditions
 is not met, carrying that affordance's <code>code</code> and its <code>reason</code> as the
-message. Over HTTP it is a <code>409</code> whose body is
-<code>{"detail": &lt;reason&gt;, "code": &lt;code&gt;}</code>.</p>
+message. django-spec-html's <code>error_response</code> answers it over HTTP as a
+<code>409</code> whose body is <code>{"detail": &lt;reason&gt;, "code": &lt;code&gt;}</code>.</p>
 <p>A <a class="autorefs autorefs-internal" title="ServiceConflict" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict"><code>ServiceConflict</code></a>
 subclass rather than a <code>code=</code> argument on its parent, for three reasons. The
 <code>409</code> answer needs no new status, because a subclass is matched by its

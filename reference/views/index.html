@@ -1476,6 +1476,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.view_call_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        view_call_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.views.utils.layer_serializer_context" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2350,6 +2361,17 @@
     <span class="md-ellipsis">
       
         resolve_input_extras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.view_call_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        view_call_context
       
     </span>
   </a>
@@ -3331,8 +3353,10 @@ management command) there is no DRF view, so this frozen value stands in:</p>
         <p>Collect the extras that should be merged into a service/selector pool.</p>
 <p>Three layers, merged with <code>dict.update</code> in increasing specificity so the
 spec-level provider has the final say on overlapping keys. Each is invoked
-through the framework's provider convention, receiving only the subset of
-<code>{view, request}</code> it declares (or the whole pool via <code>**kwargs</code>).</p>
+through the framework's provider convention (<code>_invoke_provider</code>),
+receiving only the subset of <code>{view, request, call_context}</code> it declares,
+or <code>{view, request}</code> via <code>**kwargs</code>: the call's context is offered by
+name only.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3465,6 +3489,55 @@ provider by keyword only when it declares the name.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.view_call_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">view_call_context</span>
+
+
+<a href="#rest_framework_services.views.utils.view_call_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">view_call_context</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The call's context of the request <code>view</code> is serving: one dict per request.</p>
+<p>Built on first use with the edge's four standard entries (<code>request</code>,
+<code>view</code>, <code>format</code> <code>None</code> and the view's <code>action</code> or <code>None</code>) and kept
+on the view, which DRF builds afresh for every request, so a second request
+is a second dict (test_each_request_is_a_call_of_its_own). Kept rather than
+rebuilt: a dict per caller fails the identity assertions of
+test_a_create_hands_every_provider_the_request_s_context. Two dispatches in
+one request, the retrieve spec finding an update's row and then the update
+spec, are one call and share it
+(test_an_update_and_the_retrieve_that_finds_its_row_share_the_request_s_dict).</p>
+<p>A view hands this object to <code>dispatch_spec</code> as its <code>call_context=</code> and
+to <code>render_spec_output</code>, so the spec's own callables are offered it as
+the edge offers them, and it offers it itself to each callable it invokes:</p>
+<ul>
+<li>the hooks <code>get_service_kwargs</code> / <code>get_selector_kwargs</code>,
+  <code>get_input_data</code>, <code>get_input_serializer_context</code> and
+  <code>get_output_serializer_context</code>, and the per-action form of each
+  (<code>get_&lt;action&gt;_service_kwargs</code> and so on);</li>
+<li>the spec's <code>*_serializer_context</code> provider where the view builds the
+  serializer context itself;</li>
+<li><code>get_progress_reporter</code> and <code>get_&lt;action&gt;_progress_reporter</code>;</li>
+<li>a <code>PolymorphicServiceSpec</code>'s <code>discriminator</code>.</li>
+</ul>
+<p>Each is offered it <strong>by name only</strong>, as the kernel binds it: a callable
+declaring a <code>call_context</code> parameter is handed this dict, and one taking
+<code>**kwargs</code> alone never is, so its keys, and a serializer context built
+from them, carry no <code>call_context</code>
+(test_a_catch_all_callable_on_a_live_view_is_never_handed_the_call_context).
+<code>success_status</code> and <code>response_finalizer</code> are not offered it: a view
+refuses either naming it when the view is built.</p>
 
 
     </div>
@@ -3763,6 +3836,8 @@ a view that wants that composes them itself with
 <code>combine_progress</code>. <code>None</code> when the view
 offers neither, which leaves the seed as
 <a class="autorefs autorefs-internal" title="null_progress" href="../dispatch/#rest_framework_services.dispatch.null_progress.null_progress"><code>null_progress</code></a>.</p>
+<p>A hook naming <code>call_context</code> is handed the request's dict
+(<code>view_call_context</code>), and one taking <code>**kwargs</code> alone is not.</p>
 
 
     </div>

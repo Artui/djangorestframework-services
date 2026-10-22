@@ -1500,6 +1500,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.replace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1909,6 +1920,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.replace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2091,8 +2113,9 @@ per dispatch.</p>
 <p><strong>There is no global registry</strong>: a consumer holds as many of its own
 instances as it likes, with no shared state between them. Registries are
 mutable - <code>register</code> adds - but every derivation (<code>by_tag</code>,
-<code>subset</code>, <code>merge</code>) returns a <strong>new</strong> registry holding a snapshot of
-the selected entries, sharing the spec objects rather than copying them.
+<code>subset</code>, <code>merge</code>, <code>replace</code>) returns a <strong>new</strong> registry holding a
+snapshot of the selected entries, sharing the spec objects rather than
+copying them.
 A derived view never mutates its source, and a later <code>register()</code> on the
 source does <strong>not</strong> appear in a view derived earlier.</p>
 
@@ -2441,6 +2464,78 @@ one; merging is the single place that reuse becomes a conflict.</p>
             <td>
               <div class="doc-md-description">
                 <p>The same name appears in more than one input.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.replace" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">replace</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.replace" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpecRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A new registry with <code>spec</code> under <code>name</code> in place of the spec registered there.</p>
+<p>The entry keeps its tags and its place in the order, and every other
+entry is shared, as in any view. The usual replacement is the
+registered spec's own <code>derive(...)</code>: a variant shaped for one
+transport goes to the registry that transport is handed, while the
+source keeps serving the base. The replacement is checked as
+<code>register</code> checks a spec.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>name</code> is not registered here - a replacement for an
+operation nobody registered is a typo, not a registration.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a
+<code>SelectorSpec</code>, nor an object compiling to one.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>spec</code>, or what it compiles to, has
+<code>permissions is None</code>.</p>
               </div>
             </td>
           </tr>

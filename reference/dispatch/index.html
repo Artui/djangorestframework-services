@@ -4243,14 +4243,18 @@ closed argument set, validation, affordances, preconditions, the run and the
 output re-read are the kernel's, documented on its <code>dispatch</code>.</p>
 <p>Most leaves on this page are the kernel's own too, re-exported at the path this
 package has always exported them from: <code>DispatchResult</code>, <code>UnknownArguments</code>,
-<code>OutputPage</code>, <code>paginate_output</code>, <code>DEFAULT_PAGE_SIZE</code>, <code>enforce_affordances</code>,
-<code>aenforce_affordances</code>, <code>unmet_operation_affordance</code>,
-<code>aunmet_operation_affordance</code>, <code>operation_affordances</code>, <code>provider_keys</code>,
+<code>OutputPage</code>, <code>paginate_output</code>, <code>DEFAULT_PAGE_SIZE</code>,
+<code>operation_affordances</code>, <code>provider_keys</code>,
 <code>ProviderKeys</code>, <code>is_async</code>, <code>run_service</code>, <code>arun_service</code>, <code>run_selector</code>,
 <code>arun_selector</code>, <code>is_queryset</code>, <code>materialize_retrieve</code>,
 <code>amaterialize_retrieve</code>, <code>base_pool</code> and <code>null_progress</code>. Each is the same
 object under both names, so the import you have keeps working and the
-documentation rendered for it here is the kernel's.</p>
+documentation rendered for it here is the kernel's. The four affordance
+functions, <code>enforce_affordances</code>, <code>aenforce_affordances</code>,
+<code>unmet_operation_affordance</code> and <code>aunmet_operation_affordance</code>, are drfs' own
+thin wrappers over the kernel's: they reserve the names the DRF edge seeds
+(<code>request</code> and <code>view</code>) beside the set they are given, and otherwise pass the
+kernel's arguments through.</p>
 <h2 id="transport-neutral-dispatch">Transport-neutral dispatch<a class="headerlink" href="#transport-neutral-dispatch" title="Permanent link">&para;</a></h2>
 <p>The single execution path a non-HTTP transport drives: hand a spec, the
 acting <code>user</code>, and a flat <code>params</code> mapping, get back a <code>DispatchResult</code> to
@@ -4279,6 +4283,63 @@ boolean or <code>123</code> for a string is refused before the serializer runs. 
 <code>UrlKwarg</code> or <code>QueryParam</code> follows the same split: a live view reads it from its
 route or query string alone, and off HTTP it is the caller's argument. See
 <a href="../../recipes/off-http-inputs/#who-validates-what">who validates what</a>.</p>
+<p><strong>The call's context.</strong> <code>dispatch_spec</code> and <code>adispatch_spec</code> take
+<code>call_context=</code>, the kernel's <code>call_context</code>: one plain <code>dict</code> the caller owns
+for its own scope, handed as the same object, never a copy, to every stage that
+names it. Those are the kernel's <code>dispatch</code> and its target lookup, and the two
+stages this edge calls itself, the spec's <code>kwargs</code> provider and <code>input_data</code>,
+beside the <code>input_serializer_context</code> and <code>output_serializer_context</code>
+providers, so a stage writes where a later one, or the caller, reads. With none,
+each call gets a fresh dict. A live view builds one per request, with the same
+four entries below, and hands that one dict to its dispatch, to the render, bulk
+included, and to every provider and <code>get_*</code> hook it invokes itself (its
+<code>kwargs</code>, <code>input_data</code>, serializer-context and progress-reporter hooks among
+them) and to a <code>PolymorphicServiceSpec</code>'s <code>discriminator</code>. Each is offered it by
+name only, as the kernel binds it: a callable declaring a <code>call_context</code>
+parameter is handed the dict, and one taking <code>**kwargs</code> alone never sees it.
+<code>success_status</code> and <code>response_finalizer</code> are not offered it, and a view naming
+it in either is refused when it is built. Two dispatches in one request share
+the dict; a second request is a second dict. A serializer's context is a
+separate dict of its own:
+a provider that names <code>call_context</code> is handed the call's, and copies into the
+context it returns what the serializer should see.</p>
+<p>The edge fills four standard entries, each only where the dict has none, so a
+caller's own entry wins:</p>
+<table>
+<thead>
+<tr>
+<th>Entry</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>request</code></td>
+<td>the <code>request</code> passed to the dispatch</td>
+</tr>
+<tr>
+<td><code>view</code></td>
+<td>the <code>view</code> passed to the dispatch</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>always <code>None</code>: the edge is handed no format, as <a href="#base_serializer_context"><code>base_serializer_context</code></a> says</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>the view's <code>action</code> where it has a non-empty one, else <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p>An empty dict passed is still the caller's, and is filled. A transport that
+runs the kernel's own <code>dispatch</code> over <code>kernel_spec(spec)</code> instead of this edge
+puts the same four keys in its context by the same convention, which is what
+the permission check and the serializer context read when the call carries no
+<code>request</code> or <code>view</code> of its own (see
+<a href="../../recipes/off-http-inputs/#the-request-and-view-a-call-carries">the request a call carries</a>).
+The rendering and affordance functions below take the same argument: a
+transport that renders, or asks which operations to offer, after the dispatch
+returned passes the dict it dispatched with.</p>
 <h3 id="dispatch_spec"><code>dispatch_spec</code><a class="headerlink" href="#dispatch_spec" title="Permanent link">&para;</a></h3>
 
 
@@ -4308,7 +4369,8 @@ route or query string alone, and off HTTP it is the caller's argument. See
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4736,6 +4798,34 @@ spec's own.</p>
                   <code>None</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>call_context</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The call's context, the kernel's <code>call_context</code>: one
+plain <code>dict</code> the caller owns for its own scope, handed as the
+same object, never a copy, to every stage naming
+<code>call_context</code> - the spec's <code>kwargs</code> provider and
+<code>input_data</code>, which this edge calls itself, a target lookup, and
+every stage of the kernel's <code>dispatch</code>. <code>None</code> is a fresh dict
+for this call alone. The edge sets <code>request</code> and <code>view</code> to the
+ones passed here, <code>format</code> to <code>None</code>, and <code>action</code>, the
+operation's name, to <code>view.action</code> where <code>view</code> has a non-empty
+one and to <code>None</code> otherwise, each only where the dict has no
+entry of that name, so a caller's own entries win. A
+view passes none, so a context per dispatch is a context per
+request.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -4903,7 +4993,8 @@ or <code>bytes</code>, a non-iterable, <code>None</code>); its write stands.</p>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4934,6 +5025,13 @@ does both).</p>
     </div>
 
 </div><h3 id="render_spec_output"><code>render_spec_output</code><a class="headerlink" href="#render_spec_output" title="Permanent link">&para;</a></h3>
+<p><code>call_context=</code> is handed to an <code>output_serializer_context</code> provider that names
+<code>call_context</code>, as the same object. A transport renders after the dispatch
+returns, so it passes the dict it dispatched with, and the provider reads what
+the call's stages left there. These functions fill none of the standard
+entries: the dict a dispatch was given already has them, and with none passed
+the provider has a fresh dict for this render alone. <code>arender_spec_output</code>,
+<code>render_for_audience</code> and <code>arender_for_audience</code> take it the same way.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -4953,7 +5051,8 @@ does both).</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4980,7 +5079,10 @@ values, indistinguishable from a real row with empty fields.</p>
 and behind a DRF view. The spec's <code>output_serializer_context</code> provider, if any, is
 resolved with <code>view</code> / <code>request</code> plus the resolved-data <code>extras</code> it declares
 (<code>page</code> for a list, <code>instance</code> for a retrieve, <code>result</code> for a mutation) and
-merged over that baseline.</p>
+merged over that baseline. A provider naming <code>call_context</code> is handed the
+<code>call_context</code> passed here, the same object, so a transport rendering after
+<code>dispatch_spec</code> returns passes the dict it dispatched with; with none, the
+provider has a fresh dict for this render alone.</p>
 <p>Pagination is the caller's job — pass the already-sliced page as <code>value</code>
 (and the same page object under the matching <code>extras</code> key) so an
 id-keyed batched context query reuses the page's result cache.</p>
@@ -5026,7 +5128,8 @@ exactly as before.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5096,7 +5199,8 @@ will have been projected away.</p>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5151,7 +5255,8 @@ that reader.</p>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5220,11 +5325,19 @@ nothing to count and nothing to slice.</p>
     <div class="doc doc-contents first">
 
         <p>Slice <code>rows</code> into the page a transport serves.</p>
-<p>A function a transport calls on a list result's <code>value</code> before presenting
-it, not a paging scheme: the names a caller pages by, and the ceiling a
-mount allows, are the transport's. A transport takes them off the call
-before the spec's closed argument set sees them, and bounds legitimately
-differ between two mounts of one spec. HTTP views do not page.</p>
+<p>A function a transport calls on a paged spec's result <code>value</code> before
+presenting it, not a paging scheme: the names a caller pages by, and the
+ceiling a mount allows, are the transport's. A transport takes them off the
+call before the spec's closed argument set sees them, and bounds
+legitimately differ between two mounts of one spec.</p>
+<p>Whether to page is read off the spec, never off the result's <code>kind</code>: a
+<code>LIST</code> selector spec, or a service spec whose output selector is a
+<code>LIST</code>, is paged, and
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.schema.spec_output_schema.spec_output_schema"><code>spec_output_schema</code></a>
+describes it as the envelope under <code>paginate=True</code>. A <code>many</code> or
+<code>returns_many</code> service spec's result is <code>kind="list"</code> too, and is never
+paged: it is every row the service returned, which its output schema
+describes as a bare array whatever <code>paginate</code> says.</p>
 <p><code>page</code> and <code>limit</code> default to 1 and
 <a class="autorefs autorefs-internal" title="DEFAULT_PAGE_SIZE
 
@@ -5665,8 +5778,9 @@ mapping, or the instance a dataclass Validator builds.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The call a presenter renders for: its principal, its target
-and its resolved seeds, which <code>present</code> hands to
+                <p>The call a presenter renders for: its principal, its target,
+its resolved seeds, the call's context and the arguments sent for
+the spec's <code>shapes</code>, which <code>present</code> hands to
 <code>Presenter.presented()</code>. <code>None</code> on a result dispatch did not
 build, and on a not-found, which is never presented. It takes no
 part in equality: two results of one value are one result.</p>
@@ -6888,7 +7002,11 @@ Skip it and a call the direct path refuses with <code>ActionUnavailable</code> s
 that path instead. Like the two below, they are the kernel's functions with
 <code>request</code> and <code>view</code> reserved beside the <code>reserved</code> set passed, the names
 <code>dispatch_spec</code> seeds itself, so a condition reading either is handed it from
-the pool.</p>
+the pool. Each takes <code>call_context=</code> too, passed to the kernel's function, which
+hands it to a condition that names <code>call_context</code> (and to none taking a bare
+<code>**kwargs</code>): pass the dict the call dispatches with, so the check and the call
+read one context. A <code>call_context</code> passed beside a different one already in the
+<code>pool</code> is refused with <code>ImproperlyConfigured</code>.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -6905,7 +7023,8 @@ the pool.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -6914,7 +7033,9 @@ the pool.</p>
 <p>django-service-specs' own <code>enforce_affordances</code>, with <code>request</code> and
 <code>view</code> reserved beside <code>reserved</code>: <code>dispatch_spec</code> seeds both itself,
 so a condition declaring either is handed it from <code>pool</code> here as it is
-at the call. See the kernel's function for the order it must run in.</p>
+at the call. <code>call_context</code> is the call's context, handed to a condition
+naming it as the kernel's function hands it. See the kernel's function for
+the order it must run in.</p>
 
 
     </div>
@@ -6939,7 +7060,8 @@ at the call. See the kernel's function for the order it must run in.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -6961,7 +7083,10 @@ the pool with <code>base_pool</code> and the same <code>seeds=</code> the call w
 every call, beside the seeds it is handed, so these functions reserve both beside
 the set you pass: a condition declaring either is answered from the pool here as
 it is at the call, and the two agree. The answer is advisory: <code>dispatch_spec</code>
-still enforces every affordance when the operation is called.</p>
+still enforces every affordance when the operation is called. <code>call_context=</code>
+is handed to a condition naming <code>call_context</code>, as in <code>enforce_affordances</code>;
+with none, the one the <code>pool</code> carries is, else a fresh dict the conditions of
+this call share.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -6973,8 +7098,12 @@ still enforces every affordance when the operation is called.</p>
 
 <a href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unmet_operation_affordance</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -6985,7 +7114,9 @@ and <code>view</code> reserved beside <code>reserved</code>: <code>dispatch_spec
 itself, so a condition declaring either is handed it at the call, and is
 handed it here from <code>pool</code> too. Pass <code>reserved=seeds.reserved</code> for the
 seeds the call registers, and listing time reads the names call time does.
-See the kernel's function for everything else it answers.</p>
+<code>call_context</code> is the call's context, handed to a condition naming it as
+the kernel's function hands it. See the kernel's function for everything
+else it answers.</p>
 
 
     </div>
@@ -7005,8 +7136,12 @@ See the kernel's function for everything else it answers.</p>
 
 <a href="#rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">aunmet_operation_affordance</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">

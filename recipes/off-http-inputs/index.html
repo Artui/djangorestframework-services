@@ -1129,6 +1129,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-request-and-view-a-call-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The request and view a call carries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#which-one-do-i-reach-for" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1781,6 +1792,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-request-and-view-a-call-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The request and view a call carries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#which-one-do-i-reach-for" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2262,7 +2284,8 @@ must still be caller-suppliable.</p>
 </span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Each entry is a parameter of the compiled spec, so it is an argument a caller
-sends, the schema lists and <code>REJECT</code> admits (see
+sends, the schema lists (bar a <code>QueryParam</code> that is a shape, which
+<code>spec_to_json_schema</code> does not list) and <code>REJECT</code> admits (see
 <a href="../../reference/service-specs/#what-a-spec-declares-for-a-caller-off-http">what a spec declares for a caller off HTTP</a>).
 Where the value comes from depends on the view the call carries:</p>
 <ul>
@@ -2311,11 +2334,120 @@ read-shaping param is legitimate by construction. It follows the same split: a
 live view reads it from the request's query string alone and never writes a body
 value there, while off HTTP the caller sends it as an argument, which joins an
 offline request's <code>request.query_params</code> when the query string lacks it.</p>
+<p>A <code>QueryParam</code> that no callable of the call takes by name is a <strong>shape</strong>: it
+shapes what is rendered rather than what is run, so the kernel hands it to the
+presenter alone (<a href="../../reference/types/#queryparam">which callables count</a>).
+When the kernel's <code>dispatch</code> presents the result, the presenter builds an
+offline request for the principal whose query string is the call's shapes, so a
+serializer reading <code>fields</code> off <code>request.query_params</code> finds what the caller
+sent without anything being put on a request by hand:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">dispatch</span><span class="p">,</span> <span class="n">kernel_spec</span><span class="p">,</span> <span class="n">present</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AllowAny</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="nb">id</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">IntegerField</span><span class="p">()</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_representation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>        <span class="n">data</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">to_representation</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="n">wanted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s2">&quot;request&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fields&quot;</span><span class="p">)</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>        <span class="k">if</span> <span class="n">wanted</span><span class="p">:</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">wanted</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data</span><span class="p">}</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>        <span class="k">return</span> <span class="n">data</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="n">authors</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">,</span>  <span class="c1"># takes no `fields`, so it is a shape</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>    <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorSerializer</span><span class="p">,</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>    <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">AllowAny</span><span class="p">],</span>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>    <span class="n">reads</span><span class="o">=</span><span class="p">[</span><span class="n">QueryParam</span><span class="p">(</span><span class="s2">&quot;fields&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Comma-separated fields to return.&quot;</span><span class="p">)],</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="p">)</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">kernel_spec</span><span class="p">(</span><span class="n">authors</span><span class="p">)</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="n">result</span> <span class="o">=</span> <span class="n">dispatch</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">principal</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">arguments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;fields&quot;</span><span class="p">:</span> <span class="s2">&quot;name&quot;</span><span class="p">})</span>
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="n">present</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>  <span class="c1"># [{&quot;name&quot;: &quot;Ada&quot;}]</span>
+</span></code></pre></div>
+<p>The drfs edge renders in a separate step, with the <code>request</code> and <code>view</code> the
+caller hands <code>render_spec_output</code>, so there the query string is the one the
+request carries: the offline request <code>build_offline_context(query_params=)</code>
+seeds, and onto which <code>dispatch_spec</code> puts a declared <code>QueryParam</code> the string
+lacks when the view is an offline one. A DRF <code>Request</code> the call carries is left
+as it is on the kernel's route: it has a query string of its own.</p>
 <p>Both types live here rather than in each adapter so the same declaration means the
 same thing on every transport. Adapters validate a registration set with
 <a class="autorefs autorefs-internal" title="validate_channel_names" href="../../reference/types/#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>, which
 always includes <code>RESERVED_POOL_SEEDS</code> and takes the transport's own reserved
 pagination names on top.</p>
+<h2 id="the-request-and-view-a-call-carries">The request and view a call carries<a class="headerlink" href="#the-request-and-view-a-call-carries" title="Permanent link">&para;</a></h2>
+<p>Over HTTP the permission classes and the serializers meet the request and view
+the framework built. Off HTTP the call may carry them too, in either of two
+places, and each consumer reads them in the same order: the <code>request</code> or <code>view</code>
+the call registered as a seed, else the entry of that name in its
+<code>call_context</code>, with <code>None</code> in either place counting as no value. A seed outranks
+the context, so a transport's own registered object is never replaced by what a
+caller put in the dict. <code>dispatch_spec</code> registers the <code>request</code> and <code>view</code> it
+was handed, so one passed there is the seed and wins; with none passed, an entry
+the caller put in <code>call_context</code> is read. A transport that runs the kernel's
+<code>dispatch</code> over <code>kernel_spec(spec)</code> registers no seed at all, and its context
+holds the request a run arrived on and, perhaps, a view built for the operation
+(<a href="../../reference/dispatch/#transport-neutral-dispatch">the call's context</a>).</p>
+<p>What a carried request or view becomes differs by consumer, and by what it is:</p>
+<table>
+<thead>
+<tr>
+<th>The call carries...</th>
+<th><code>DRFPermissionCheck</code> asks the classes</th>
+<th>The serializer context holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a DRF <code>Request</code> and a view</td>
+<td>both, as they are</td>
+<td>both, as they are</td>
+</tr>
+<tr>
+<td>a DRF <code>Request</code> alone</td>
+<td>the request, beside an offline view</td>
+<td>the request, beside <code>None</code> for the view</td>
+</tr>
+<tr>
+<td>a view alone</td>
+<td>the view, beside an offline request for the principal</td>
+<td>the view, beside <code>None</code> for the request</td>
+</tr>
+<tr>
+<td>a Django <code>HttpRequest</code> DRF has not wrapped</td>
+<td>a DRF <code>Request</code> around a copy of it, beside the carried view, else an offline view</td>
+<td>the same wrapped request, beside the carried view, else an offline view built around it</td>
+</tr>
+<tr>
+<td>neither</td>
+<td>an offline request and view for the principal</td>
+<td>an offline request and view for the principal</td>
+</tr>
+</tbody>
+</table>
+<p>A permission class is never handed <code>None</code> for a request or a view, which is why
+it fills the half the call lacks. A serializer is not asked to, and pairing a
+carried request with a view built around another one would describe a call that
+never happened, so the serializer context keeps one carried half as it is. A
+view that answers <code>get_serializer_context</code> supplies the serializer context
+whole, as it does on HTTP.</p>
+<p>A carried Django request is wrapped as <code>build_offline_context(http_request=)</code>
+wraps one: a copy of it, so the request the run arrived on is never written to,
+with its headers and session shared, its <code>user</code> the principal, and its query
+string replaced. The query string is the arrived-on endpoint's, not this
+operation's, so it is not kept. The serializer's is the call's shapes, and
+empty where the call sent none. A permission class's is the value of each
+declared <code>QueryParam</code> the call sent, or its <code>default</code>, with the request's own
+left alone only when the permission check is asked with no arguments at all.</p>
+<p>The offline view's <code>action</code> is the call context's <code>action</code>, where that is a
+non-empty string, so a permission class or a serializer branching on
+<code>view.action</code> reads the operation's name rather than <code>None</code>. A view the call
+carries keeps its own <code>action</code>.</p>
 <h2 id="which-one-do-i-reach-for">Which one do I reach for?<a class="headerlink" href="#which-one-do-i-reach-for" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

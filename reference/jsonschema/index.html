@@ -1711,6 +1711,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-registry-on-the-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A registry on the spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#jsonschemaregistry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2164,6 +2175,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-registry-on-the-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A registry on the spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#jsonschemaregistry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2536,6 +2558,12 @@ mappings otherwise, and anything unrecognised falls back to <code>{}</code> (JSO
 Schema "any value") rather than breaking generation. Requires the
 <code>[filter]</code> extra (<code>django-filter</code>), raising a clear <code>ImportError</code> when
 it is absent — only ever when a <code>filter_set</code> is actually introspected.</p>
+<p><strong>These rules describe drfs' schema alone.</strong> A spec's <code>filter_set</code> compiles
+to Parameters the kernel builds itself, from each filter's form field, so
+drfs builds none of them and a spec's <code>json_schema_registry</code> has nowhere
+to apply its <code>filters</code> rules on the compiled spec: the kernel's schema of
+a <code>filter_set</code> reads as the kernel reads it, whatever is registered here
+(test_a_filters_rule_reaches_drfs_schema_and_not_the_compiled_spec).</p>
 
 
     </div>
@@ -2570,7 +2598,7 @@ derived wording.</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">phase</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">supplied</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">argument_binding</span><span class="p">:</span> <span class="n">ArgumentBinding</span> <span class="o">=</span> <span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">AUTO</span><span class="p">,</span>
@@ -2588,7 +2616,18 @@ for custom field / filter / Python types — see
 
   
       dataclass
-  " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
+  " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.
+Passed, it describes every part of the schema, the empty
+<code>DEFAULT_JSON_SCHEMA_REGISTRY</code> included
+(test_a_passed_registry_wins_over_the_spec_s,
+test_a_passed_registry_wins_over_a_nested_spec_s). Left out, the spec's own
+<code>json_schema_registry</code> describes it (test_a_service_spec_s_input_reads_its_registry,
+test_a_selector_spec_s_reads_take_its_python_type_rules), and a <code>ServiceSpec</code>'s
+output, which its <code>output_selector_spec</code>'s serializer describes, reads that
+nested spec's registry, else the service spec's
+(test_an_output_selector_spec_reads_its_own_registry,
+test_an_output_selector_spec_with_none_reads_the_outer_spec_s), as the
+compile does. With neither, the empty default.</p>
 <p><code>phase="input"</code> (default) returns the input-argument schema:</p>
 <ul>
 <li><a class="autorefs autorefs-internal" title="ServiceSpec
@@ -3134,6 +3173,64 @@ enumerate. <strong>Never <code>$defs</code> / <code>$ref</code>.</strong> Factor
 the obvious answer and it is refused deliberately: most MCP clients reject a tool
 schema containing a reference outright, so it would trade a size problem for a
 compatibility one. Every schema these helpers emit is flat and self-contained.</p>
+<h2 id="a-registry-on-the-spec">A registry on the spec<a class="headerlink" href="#a-registry-on-the-spec" title="Permanent link">&para;</a></h2>
+<p>A registry passed as <code>registry=</code> reaches one call. Declared on the spec as
+<code>json_schema_registry=</code>, it travels with the spec, to every helper that
+describes it and to the spec as it compiles for the kernel:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">fields</span><span class="o">=</span><span class="p">[(</span><span class="n">MoneyField</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;money&quot;</span><span class="p">,</span> <span class="s2">&quot;pattern&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;^\d+$&quot;</span><span class="p">})],</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="p">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="n">charge</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">service</span><span class="o">=</span><span class="n">charge_card</span><span class="p">,</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ChargeSerializer</span><span class="p">,</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="n">json_schema_registry</span><span class="o">=</span><span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">)</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">charge</span><span class="p">)</span>  <span class="c1"># reads the spec&#39;s registry</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">charge</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">)</span>  <span class="c1"># no rules</span>
+</span></code></pre></div>
+<p><strong>A <code>registry=</code> passed to a helper wins over the spec's</strong>, the empty default
+included, so a caller can still describe a spec without its rules. A spec that
+declares none reads the empty default, as it always did.</p>
+<p><strong>A nested spec reads its own, else the outer spec's.</strong> A service spec's
+target lookup and output selector spec each read their own registry, and the
+service spec's where they declare none. An affordance is a spec of its own and
+reads only its own.</p>
+<p><strong>In the compile, the keywords the kernel can state become checks.</strong> <code>fields</code>
+rules are read where the input and output serializers are walked, and
+<code>python_types</code> rules where a callable's annotations are. A keyword a kernel
+<code>Parameter</code> or <code>OutputField</code> spells sets that field, and is then enforced off
+HTTP as a built-in field's would be: <code>type</code>, <code>format</code>, <code>enum</code>, a bare <code>items</code>,
+and on an input the bounds (<code>minimum</code>, <code>maximum</code>, <code>minItems</code>, <code>maxItems</code>) and
+<code>description</code>, on an output <code>title</code>. Every other keyword, <code>pattern</code> above
+among them, is advertised in the compiled schema and not enforced there.
+Over HTTP DRF's serializer validates alone, so there a registered bound is a
+description and nothing more: a field whose rule states a range it does not
+check itself accepts a value outside it on the view and is refused off HTTP.
+Make the field, or the serializer, check what its rule states, and every route
+answers the same.</p>
+<p><strong>What the kernel cannot state is dropped from the compiled spec, never
+refused.</strong> A <code>format</code> outside the kernel's four (<code>decimal</code>, <code>date-time</code>, <code>date</code>,
+<code>uuid</code>) goes, so <code>format: "money"</code> above is in every schema drfs' helpers build
+and absent from the compiled one. So does a keyword the kernel would refuse for
+the field's type, such as a <code>format</code> with no <code>type</code> or a <code>minimum</code> on a string,
+and a value that is not JSON. The kernel decides by refusing, so a registry
+<code>spec_to_json_schema</code> accepts never stops a spec compiling, and drfs' own
+helpers keep describing the whole fragment.</p>
+<p><strong><code>filters</code> rules describe drfs' schema alone.</strong> The kernel builds a
+<code>filter_set</code>'s parameters itself, so a <code>filters</code> rule never reaches the
+compiled spec.</p>
+<p><strong>A <code>python_types</code> rule on a spec's registry types its reflected reads.</strong> A
+selector's, a target lookup's and a spread service's annotations are matched
+by identity, and a read a rule types is then checked as an annotation is. A
+class no rule names stays untyped, so this is opt-in: it starts when a spec
+declares the field.</p>
+<p><strong>A dataclass input is the one place the two routes read different rules:</strong>
+drfs' helpers match its annotations against <code>python_types</code>, while the compile
+walks the serializer built from it and matches its fields against <code>fields</code>, so
+a rule meant for both is registered twice, on the type and on the field class
+it is read through (a <code>DecimalField</code> for a <code>Decimal</code>).</p>
 <h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
 
 
@@ -3176,6 +3273,13 @@ result via the helpers' <code>registry=</code> argument:</p>
 )
 schema = serializer_to_json_schema(MySerializer, registry=registry)
 </code></pre></div>
+<p>That fragment describes every <code>MoneyField</code> as a string of <code>format:
+"money"</code> in the schemas drfs' own helpers build. Declared on a spec as
+<code>json_schema_registry=</code>, the same rule also reaches the spec as it
+compiles for the kernel, where only what the kernel can state is kept: the
+field is a string there and <code>format: "money"</code>, which is none of the
+kernel's four formats, is dropped
+(test_the_compiled_schema_agrees_with_drfs_but_for_the_dropped_format).</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -3222,7 +3326,9 @@ a serializer (<code>serializer_to_json_schema</code>, and the input side of
             <td>
               <div class="doc-md-description">
                 <p>Bare Python types, matched by <em>identity</em> when walking a
-dataclass's field annotations.</p>
+dataclass's field annotations, and, from a spec's
+<code>json_schema_registry</code>, a selector's, target lookup's or spread
+service's annotations as the spec compiles.</p>
               </div>
             </td>
           </tr>

@@ -1844,7 +1844,9 @@ Keep the whole call inside the service's atomic block.</p>
 of every row service a relation spec declares and of every <code>scope</code> callable. This
 helper never reads it — it exists so per-row work downstream can see the acting
 caller. A service opts in by handing on the pool it was called with,
-<code>context=kwargs</code>.</p>
+<code>context=kwargs</code>. A catch-all is never handed the call's context, so a
+service whose nested callables should see it names <code>call_context</code> and
+hands it on beside the pool, as <code>create_model</code>'s service does.</p>
 
 
     </div>

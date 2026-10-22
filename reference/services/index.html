@@ -2568,9 +2568,12 @@ arrive in the arguments:</p>
 since the row is what a create's output presents. It opens no transaction:
 dispatch runs a service inside one, which covers the row and every nested
 write. It takes <code>**kwargs</code>, so the rest of the pool - the <code>user</code> and
-any registered seed - is absorbed rather than refused, and the same pool
-is handed on as the helper's <code>context</code>, so a row service a relation spec
-declares can see who is calling.</p>
+any registered seed - is absorbed rather than refused. It names
+<code>call_context</code>, which a catch-all is never handed, and the same pool
+with the call's context beside it is handed on as the helper's
+<code>context</code>, so a row service a relation spec declares can see who is
+calling and, by naming <code>call_context</code>, the very dict the call's other
+stages share.</p>
 
 
     </div>
@@ -2619,7 +2622,8 @@ as they are, and <code>m2m</code> is read as <code>create_model</code> reads it.
       dataclass
   " href="../types/#rest_framework_services.types.change_result.ChangeResult"><code>ChangeResult</code></a>,
 opens no transaction of its own, absorbs the rest of the pool and hands it
-on as <code>context</code>, as <code>create_model</code>'s does.</p>
+on as <code>context</code> with the call's context beside it, as <code>create_model</code>'s
+does.</p>
 
 
     </div>
@@ -2676,8 +2680,9 @@ rather than at its first call. With no map, or an empty one, nothing but
 the row is touched.</p>
 <p>The service opens no transaction: dispatch runs it inside one, so a refused
 cascade leaves every row in place. It absorbs the rest of the pool and
-hands it on as the cascade's <code>context</code>, so a row's <code>delete_service</code> can
-see who is calling.</p>
+hands it on, with the call's context it names, as the cascade's
+<code>context</code>, so a row's <code>delete_service</code> can see who is calling and,
+by naming <code>call_context</code>, the very dict the call's other stages share.</p>
 
 
     </div>

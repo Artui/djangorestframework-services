@@ -2393,7 +2393,10 @@ them itself:</p>
 </span></code></pre></div>
 <ul>
 <li><strong><code>reads</code></strong>: each <code>UrlKwarg</code> and <code>QueryParam</code> becomes one kernel <code>Parameter</code>,
-  so it is an argument a caller sends and the schema lists. An entry of the
+  so it is an argument a caller sends and the schema lists. A <code>QueryParam</code> no
+  callable of the call takes by name compiles to the kernel spec's <code>shapes</code>
+  rather than its <code>reads</code>, and reaches the presenter on
+  <code>PresentationContext.shapes</code> (see <a href="../types/"><code>QueryParam</code></a>). An entry of the
   same name as a selector parameter replaces the reflected one. A sequence is
   required, and a name may be declared once. A selector taking a bare
   <code>**kwargs</code> is not handed a route capture no callable declares: declare it
@@ -2595,8 +2598,10 @@ rendered in the language active when it is asked for. It never queries.</p>
 <li><strong>under the serializer context DRF builds on HTTP</strong>, <code>request</code>,
   <code>format</code> and <code>view</code>. The <code>request</code> and <code>view</code> the call
   registered as pool seeds are the serializer's own, read from
-  <code>ValidationContext.ambient</code> as the kernel resolved them. A call that
-  registered neither gets an offline request whose <code>user</code> is the
+  <code>ValidationContext.ambient</code> as the kernel resolved them, and where a
+  seed is absent or <code>None</code>, the entry of that name in
+  <code>ValidationContext.call_context</code>. A call that carries
+  neither gets an offline request whose <code>user</code> is the
   principal and whose <code>data</code> is the arguments, built by
   <a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.service_specs.build_offline_context.build_offline_context"><code>build_offline_context</code></a>,
   so a <code>CurrentUserDefault</code> reads the principal and a field or a
@@ -2609,7 +2614,8 @@ rendered in the language active when it is asked for. It never queries.</p>
   it layers over (see
   <code>serializer_context</code> in <code>service_specs/utils.py</code>).
   The callable declares what it reads from the call's pool:
-  <code>request</code>, <code>view</code>, <code>user</code>, a registered seed, or an argument. It is
+  <code>request</code>, <code>view</code>, <code>user</code>, <code>call_context</code>, a registered seed, or
+  an argument. It is
   asked once per call, a <code>many</code> call's included, except where the call
   builds the serializer twice, for a body the server puts a value into or
   a row a target lookup resolves, and what the callable is handed differs
@@ -2854,7 +2860,15 @@ the way drfs&#39; own output schema and audience walk read them:
   typed by the values when they share a type.</li>
 <li><strong>Presence</strong>: <code>always_present</code> is true where DRF is bound to emit the
   key: a required field, one with a default, and one allowing <code>null</code>. A
-  read-only field with neither is dropped when DRF cannot read it.</li>
+  read-only field with neither is dropped when DRF cannot read it.
+  Under <code>shaped=True</code>, no field at any depth is: the spec compiles a
+  shape, an argument such as a <code>fields</code> selector that the serializer
+  reads off the request, and a key is always present only if it is
+  present under every value the caller may send. A drfs <code>QueryParam</code>
+  declares no choices, so the values are any string, and which keys
+  each one drops is the serializer's to decide when it renders, so the
+  keys present under all of them are none that can be named. The
+  default, <code>False</code>, is the presence above.</li>
 <li><strong>Marking</strong>: the <code>FieldMarking</code> found in the field's <code>style</code>, under
   <code>MARKING</code> or any other key, and a value under <code>MARKING</code> that is not
   one refused, as drfs' walk reads it. Nested outputs carry their own.</li>
@@ -2872,10 +2886,14 @@ shown to an agent.</p>
 the serializer's <code>.data</code> for one value, under the serializer context
 derived from the call's <code>PresentationContext</code>. The <code>request</code> and
 <code>view</code> the call registered as pool seeds, read from <code>ambient</code>, are the
-serializer's own; a call that registered neither gets an offline request
-whose <code>user</code> is the principal, so a <code>SerializerMethodField</code> reading
-<code>self.context["request"].user</code> renders for the principal the call ran
-for. A list result is presented row by row by the kernel's <code>present</code>,
+serializer's own, and where a seed is absent or <code>None</code>, the entry of
+that name in <code>call_context</code>; a call that carries neither gets an
+offline request whose <code>user</code> is the principal, so a
+<code>SerializerMethodField</code> reading <code>self.context["request"].user</code>
+renders for the principal the call ran for, and whose query string is
+the call's <code>shapes</code>, so a serializer reading a <code>fields</code> selector off
+<code>request.query_params</code> finds the one the caller sent. A request the
+call carries is left as it is. A list result is presented row by row by the kernel's <code>present</code>,
 each row with the same context, which is what a <code>many=True</code> render is.
 Over that, the output half of the view hooks a DRF edge adds to the
 result's context (<code>output_view_layers</code>), resolved with the value, then <code>serializer_context</code>, the
@@ -3026,10 +3044,11 @@ never asked about an object, as on HTTP.</p>
 
         <p>DRF permission classes asked the kernel's three questions, off HTTP.</p>
 <p>The kernel asks a principal and a spec; a DRF permission class asks a
-request and a view. So each question builds the offline request and view
+request and a view. So each question asks every class in order, a fresh
+instance each time, as a DRF view's <code>get_permissions</code> does, against the
+request and view the call carries, else the offline pair
 <a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.service_specs.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
-builds for the principal, and asks every class in order, a fresh instance
-each time, as a DRF view's <code>get_permissions</code> does. The first refusal
+builds for the principal. The first refusal
 raises the dual-base
 <a class="autorefs autorefs-internal" title="NotPermitted" href="#rest_framework_services.service_specs.not_permitted.NotPermitted"><code>NotPermitted</code></a>
 with that class's own <code>message</code> and <code>code</code>, so a client is told what
@@ -3052,6 +3071,28 @@ instead, where a query string would have put it. A <code>UrlKwarg</code> or
 absent. Where a transport asks with no arguments at all (<code>None</code>), nothing
 is filled, and the classes decide what an empty route means, as they would
 for a URL that captured nothing.</p>
+<p><strong>The request and view the call carries come first.</strong> The class-level
+and object-level methods declare <code>request</code> and <code>view</code>, so a call
+registering either as a seed hands it over, and <code>call_context</code>, so a
+call that puts either in its context does: a transport running the
+kernel's <code>dispatch</code> carries the request a run arrived on, or a role
+view built for the operation, that way. Each is the seed, else the
+context's entry, and <code>None</code> in either place is no value. A carried
+view, or DRF <code>Request</code>, is asked as it is, with nothing filled onto it. Where the call
+carries one and not the other, the missing half is the offline pair's,
+built as below, so no class is ever handed <code>None</code> for a request or a
+view; where it carries neither, the whole offline pair is asked. The
+offline view's <code>action</code> is the call's context's <code>action</code>, where that
+is a non-empty string, so a class branching on <code>view.action</code> reads the
+operation's name; a carried view keeps its own. A carried Django
+request that DRF has not wrapped, the request a run arrived on as the
+kernel's call context holds it, is asked as a DRF <code>Request</code> around a
+copy of it, built as the offline pair is: its <code>user</code> the principal and
+its query string the declared <code>QueryParam</code> values the call sent,
+replacing its own, which is the endpoint's the run arrived on. Asked with
+no arguments at all, nothing is routed and its own query string stays. On
+drfs' own edge the kernel asks no check, since <code>dispatch_spec</code> runs
+under the <code>Grant</code> its view's permission classes produced.</p>
 <p><strong><code>has_object_permission</code> asks only about a model instance</strong>, as
 <a class="autorefs autorefs-internal" title="enforce_permissions" href="../dispatch/#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
 always has off HTTP; any other target is allowed here, because a DRF class
@@ -3097,8 +3138,14 @@ request and view.</p>
 
 <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_permission" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">has_permission</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3124,7 +3171,10 @@ request and view.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">target</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3525,7 +3575,7 @@ kernel's classes and wraps the call in the same block where it wants DRF's.</p>
 
 
 <a href="#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">translate_dispatch_errors</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">translate_dispatch_errors</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3773,7 +3823,10 @@ compiles it once per object. This function compiles afresh on every call.</p>
   <code>field_audiences</code> layered over the serializer's markings. A <code>ServiceSpec</code>'s output serializer is its
   <code>output_selector_spec</code>'s; one whose <code>selector</code> is <code>None</code> re-reads
   nothing, so it compiles to no output selector, and its serializer is the
-  compiled spec's own presenter.</li>
+  compiled spec's own presenter. Where that output is a <code>LIST</code> and the
+  spec is not <code>many</code>, the service returns the rows, which compiles to
+  <code>returns_many=True</code>: the kernel presents the return row by row and
+  describes it as an array of the row.</li>
 <li><code>permission_classes</code> becomes one
   <a class="autorefs autorefs-internal" title="DRFPermissionCheck" href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck"><code>DRFPermissionCheck</code></a>;
   an empty sequence, which drfs reads as "no permissions, explicitly",
@@ -3786,11 +3839,29 @@ compiles it once per object. This function compiles afresh on every call.</p>
   <a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
   reads them: named parameters and the keys of an <code>Unpack</code>-ed
   <code>TypedDict</code>, with <code>InputRequired</code> read as required and a
-  <code>NotClientInput</code> key on any callable of the call left out. A misplaced
-  marker is refused here, so at registration. Each declared <code>UrlKwarg</code>
+  <code>NotClientInput</code> key on any callable of the call left out. A named
+  parameter with no default is required too, as the callable raises
+  <code>TypeError</code> without it, unless a <code>kwargs</code> provider that says nothing
+  of its keys may fill it or the callable is a wrapper that fills its own
+  (<code>_reflected</code>). A row handed in as <code>dispatch(target=...)</code> does not
+  excuse its lookup's key on this compile: the kernel checks the arguments
+  before it reads the target, so a caller handing one still sends the key.
+  The DRF edge's per-request variants (<code>kernel_spec_variant</code>) leave
+  optional exactly the reads this rule requires
+  (<code>required_for_having_no_default</code>), so a view handing the row it
+  resolved, and each refusal stage the edge documents, answer as they
+  always did. A misplaced marker is refused here, so at registration. Each declared <code>UrlKwarg</code>
   and <code>QueryParam</code> in the spec's own <code>reads</code> is a Parameter too,
-  winning over a reflected one of its name; one the target lookup reads
-  joins the lookup's reads. A name the <code>filter_set</code> reads is the filter's,
+  winning over a reflected one of its name, and a read unless it is a
+  shape (below); one the target lookup reads joins the lookup's reads.</li>
+<li><code>shapes</code> is each declared <code>QueryParam</code> of the top-level spec that no
+  callable of the call takes by name: not the service or selector, a
+  precondition, a target lookup, a <code>kwargs</code> or <code>input_data</code> provider,
+  a bare <code>**kwargs</code> or a <code>filter_set</code> field. It shapes what is
+  rendered, as a serializer reading <code>?fields=</code> does, so the kernel hands
+  it to the presenter alone, on <code>PresentationContext.shapes</code>, rather than
+  to a callable. One a callable names stays in <code>reads</code>, and so does a
+  nested spec's own. A name the <code>filter_set</code> reads is the filter's,
   as the filter field always won the schema. The pool's own names
   (<code>user</code>, <code>request</code>, <code>view</code>, <code>serializer</code> and the kernel's
   reserved seeds) are never arguments, and a declared one is refused. So
@@ -3878,6 +3949,13 @@ compiled spec every kernel entry point reads. Each other combination is
 compiled once per source object and kept while it lives, so a request
 never recompiles and a <code>Grant</code> minted for a variant covers it on the
 next call too.</p>
+<p>Each other combination is the edge's, and it leaves optional every read
+<code>kernel_spec(spec)</code> requires only for having no default: the edge fills
+such a parameter from a row a view hands in, and refuses a missing one at
+the stage it documents, the target lookup's or the service's own
+(test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
+<code>InputRequired</code>, a required <code>TypedDict</code> key and a declared read stay
+required.</p>
 <ul>
 <li><code>partial</code>: the per-request flag a <code>PATCH</code> sets, compiled by
   <a class="autorefs autorefs-internal" title="as_kernel_spec" href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec"><code>as_kernel_spec</code></a>;

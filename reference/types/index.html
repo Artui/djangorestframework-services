@@ -5051,6 +5051,48 @@ layered over this one.</p>
               </div>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.json_schema_registry">json_schema_registry</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+   (rest_framework_services.types.json_schema_registry.JsonSchemaRegistry)" href="../jsonschema/#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry">JsonSchemaRegistry</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project's <code>JsonSchemaRegistry</code>, which
+describes this spec's schemas. drfs'
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+reads it when no <code>registry=</code> is passed, and a passed one wins.
+The compile reads its <code>fields</code> rules where it walks the input
+and output serializers, and its <code>python_types</code> rules where it
+reads a callable's annotations: a selector's, a target lookup's and
+a spread service's parameters.
+As a <code>ServiceSpec</code>'s target lookup or <code>output_selector_spec</code>,
+this spec reads its own, else the service spec's. An affordance is
+a spec of its own and reads only its own.
+A matched fragment reaches the compiled spec split in two: the
+keywords a <code>Parameter</code> or <code>OutputField</code> spells set those
+fields and are checked off HTTP, and the rest is
+<code>json_schema_extra</code>, advertised and not checked. What the kernel
+would refuse is dropped from the compiled spec and kept by drfs'
+own builders, so a registry never stops a compile: a <code>format</code>
+outside the kernel's four (<code>decimal</code>, <code>date-time</code>, <code>date</code>,
+<code>uuid</code>), or a keyword the field's type has no room for. Its <code>filters</code>
+rules never reach the compiled spec, since the kernel builds a
+<code>filter_set</code>'s Parameters itself. Named for the keyword drf-mcp's
+server and the agent toolsets take the same object by, since none
+of the three naming rules fits: it wraps no Django or DRF concept,
+configures no serialization phase and resolves no nested spec. A
+field rather than a setting because it is an object, and because
+the compile caches per spec, so a setting read at compile could not
+change a spec already compiled.</p>
+              </div>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -5726,6 +5768,48 @@ has nothing to mark, and the compile refuses it.</p>
               </div>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.json_schema_registry">json_schema_registry</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+   (rest_framework_services.types.json_schema_registry.JsonSchemaRegistry)" href="../jsonschema/#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry">JsonSchemaRegistry</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project's <code>JsonSchemaRegistry</code>, which
+describes this spec's schemas. drfs'
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+reads it when no <code>registry=</code> is passed, and a passed one wins.
+The compile reads its <code>fields</code> rules where it walks the input
+and output serializers, and its <code>python_types</code> rules where it
+reads a callable's annotations: a selector's, a target lookup's and
+a spread service's parameters.
+A nested selector spec (a target lookup or <code>output_selector_spec</code>)
+reads its own, else this one. An affordance is a spec of its own
+and reads only its own.
+A matched fragment reaches the compiled spec split in two: the
+keywords a <code>Parameter</code> or <code>OutputField</code> spells set those
+fields and are checked off HTTP, and the rest is
+<code>json_schema_extra</code>, advertised and not checked. What the kernel
+would refuse is dropped from the compiled spec and kept by drfs'
+own builders, so a registry never stops a compile: a <code>format</code>
+outside the kernel's four (<code>decimal</code>, <code>date-time</code>, <code>date</code>,
+<code>uuid</code>), or a keyword the field's type has no room for. Its <code>filters</code>
+rules never reach the compiled spec, since the kernel builds a
+<code>filter_set</code>'s Parameters itself. Named for the keyword drf-mcp's
+server and the agent toolsets take the same object by, since none
+of the three naming rules fits: it wraps no Django or DRF concept,
+configures no serialization phase and resolves no nested spec. A
+field rather than a setting because it is an object, and because
+the compile caches per spec, so a setting read at compile could not
+change a spec already compiled.</p>
+              </div>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -6080,7 +6164,7 @@ and the <code>spec=</code> of <code>@service_action</code>. A <code>SpecRegistry
 kernel entry points refuse it with a pointer at its variants, which are
 registered one per name.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">PolymorphicServiceSpec</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">discriminator</span><span class="o">=</span><span class="n">resolve_flow</span><span class="p">,</span>        <span class="c1"># pool: {request, data, user, view} → key</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">discriminator</span><span class="o">=</span><span class="n">resolve_flow</span><span class="p">,</span>        <span class="c1"># pool: {request, data, user, view, call_context} → key</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">email_spec</span><span class="p">,</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">token_spec</span><span class="p">},</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">)</span>
 </span></code></pre></div>
@@ -6116,7 +6200,8 @@ metadata-driven rule per variant, via each variant's own
               <div class="doc-md-description">
                 <p>Resolved through the framework keyword pool — it declares
 any subset of <code>request</code> / <code>data</code> (the <em>raw</em> <code>request.data</code>) /
-<code>user</code> / <code>view</code> (or <code>**kwargs</code>) — and returns a key present in
+<code>user</code> / <code>view</code> (or <code>**kwargs</code>), and <code>call_context</code>, the
+request's call context, by name only — and returns a key present in
 <code>specs</code>. For a no-match / rejected payload it should <strong>raise</strong>
 (e.g. <a class="autorefs autorefs-internal" title="ServiceValidationError" href="../exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>,
 which the view layer maps to a 400); returning a key absent from
@@ -9239,6 +9324,40 @@ schema as <code>"default": None</code> instead of vanishing.</p>
     </div>
 
 </div><h2 id="queryparam"><code>QueryParam</code><a class="headerlink" href="#queryparam" title="Permanent link">&para;</a></h2>
+<p>A <code>QueryParam</code> is one of the spec's arguments, and it is either a <strong>read</strong> or a
+<strong>shape</strong> once the spec compiles. A <strong>read</strong> is handed by name to a callable of
+the call. A <strong>shape</strong> shapes what is rendered, as a serializer reading
+<code>?fields=</code> does, so the kernel hands it to the presenter alone, on
+<code>PresentationContext.shapes</code>, and to no callable. A top-level <code>QueryParam</code> that
+no callable of the call takes by name is a shape. The callables that count are:</p>
+<ul>
+<li>the service or selector, by a named parameter or an <code>Unpack</code>-ed
+  <code>TypedDict</code> key;</li>
+<li>a precondition of either;</li>
+<li>a target lookup's selector, and its <code>kwargs</code> provider;</li>
+<li>the spec's <code>kwargs</code> and <code>input_data</code> providers, by a named parameter, or by a
+  key a typed one is annotated to fill;</li>
+<li>any of them taking a bare <code>**kwargs</code>, which takes every name, so one such
+  callable makes every <code>QueryParam</code> of the spec a read;</li>
+<li>the fields of a selector spec's <code>filter_set</code>.</li>
+</ul>
+<p>A <code>QueryParam</code> declared on a nested spec (a target lookup's own <code>reads</code>) stays a
+read, and a <code>UrlKwarg</code> is never a shape.</p>
+<p>A shape is still one of the call's parameters, so <code>kernel_spec(spec).parameters()</code>
+lists it and the caller's value is checked as declared; it is left out of <code>kernel_spec(spec).reads</code> and listed in
+<code>kernel_spec(spec).shapes</code>. Code that walked <code>.reads</code> to find a spec's query
+arguments reads <code>.shapes</code> for these, or <code>.parameters()</code> for both. A permission
+class still reads a shape off <code>request.query_params</code>, as it reads any declared
+<code>QueryParam</code>.</p>
+<p>Because a shape may drop any key the serializer renders, the compiled output
+declares no field present under every value a caller may send: the
+<code>SerializerPresenter</code> a spec with shapes compiles is built with <code>shaped=True</code>,
+which marks no output field <code>always_present</code> at any depth. The flag is the
+presenter's own, with the default unchanged (see
+<a class="autorefs autorefs-internal" title="SerializerPresenter" href="../service-specs/#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter"><code>SerializerPresenter</code></a>),
+and a presenter built by hand for a spec whose output a caller's argument
+shapes passes it itself. A <code>QueryParam</code> declares no choices, so no key can be
+named as present under all of them.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -9571,8 +9690,17 @@ take the service run down with it.</p>
 
 <a href="#rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">RESERVED_POOL_SEEDS</span><span class="p">:</span> <span class="n">Final</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="p">{</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="s2">&quot;instance&quot;</span><span class="p">,</span> <span class="s2">&quot;collection&quot;</span><span class="p">,</span> <span class="s2">&quot;result&quot;</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">,</span> <span class="s2">&quot;progress&quot;</span><span class="p">}</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        <span class="s2">&quot;user&quot;</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="s2">&quot;data&quot;</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="s2">&quot;instance&quot;</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="s2">&quot;collection&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="s2">&quot;result&quot;</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="s2">&quot;queryset&quot;</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="s2">&quot;progress&quot;</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="s2">&quot;call_context&quot;</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="p">}</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -9582,16 +9710,22 @@ take the service run down with it.</p>
 <code>data</code> the validated values, <code>instance</code> and <code>collection</code> the resolved
 target, <code>result</code> the service's return (in an output selector's pool, where
 <code>instance</code> is that return too, as djangorestframework-services binds it) and
-<code>queryset</code> what <code>extend_queryset</code> shapes. They are the names
+<code>queryset</code> what <code>extend_queryset</code> shapes. <code>call_context</code> is the call's
+context: the one plain <code>dict</code> the transport handed <code>dispatch</code>, or a fresh
+one per call when it handed none, which every callable dispatch resolves -
+a <code>kwargs</code> or <code>input_data</code> provider, a selector and its
+<code>extend_queryset</code>, an affordance condition,
+a precondition, the service, the run's <code>progress_reporter</code> - receives as
+the same object by naming it, and never through <code>**kwargs</code>. Never a copy,
+and the kernel writes nothing to it. Seed resolvers do not see it: a seed is resolved before anything the
+call adds. The other seven are the names
 <code>djangorestframework-services</code> seeds for the same values, so a callable
 written for it runs under this kernel unchanged.</p>
 <p><code>progress</code> is in every pool, and live only where there is work to report on:
 a service's run, and a selector spec's own selector. In a target or output
 selector's pool it is <code>null_progress</code>, because a lookup has nothing to
 report, and one reporting after the service finished would read to a watching
-client as the work restarting. It was reserved before it carried a value, so
-that seeding it was additive rather than a break for a spec that had declared
-a parameter by it.</p>
+client as the work restarting.</p>
 <p>A parameter declaring one of these names is refused, because a spread argument
 must never be able to outrank the value dispatch seeded - a caller naming
 itself <code>user</code> is the case that matters. <code>request</code> and <code>view</code> are not here:

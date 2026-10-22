@@ -2495,7 +2495,7 @@ name instead.</p>
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
 </span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">PolymorphicServiceSpec</span><span class="p">(</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="n">discriminator</span><span class="o">=</span><span class="n">_pick</span><span class="p">,</span>  <span class="c1"># pool: {request, data, user, view}</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="n">discriminator</span><span class="o">=</span><span class="n">_pick</span><span class="p">,</span>  <span class="c1"># pool: {request, data, user, view, call_context}</span>
 </span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>        <span class="n">specs</span><span class="o">=</span><span class="p">{</span>
 </span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>            <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">register_by_email</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">EmailIn</span><span class="p">),</span>
 </span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>            <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">register_by_token</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">TokenIn</span><span class="p">),</span>
@@ -2592,7 +2592,10 @@ renders the rows as a list. Without a <code>selector</code> it re-fetches nothin
 renders the rows the service returned, as a list, so the service must return
 them: a <code>QuerySet</code>, a list or another iterable of rows. Anything else, <code>None</code>
 included, raises <code>ImproperlyConfigured</code> naming the declaration, after the
-service has written. Full walkthrough in the
+service has written. The declaration compiles to the kernel's <code>returns_many</code>
+(a <code>LIST</code> output with no <code>selector</code>, on a spec that is not <code>many</code>), so the
+kernel's own <code>dispatch</code> answers it as a list, presented row by row, and its
+output schema is an array of the row. Full walkthrough in the
 <a href="../recipes/bulk-mutations/">bulk &amp; collection mutations recipe</a>.</p>
 <h2 id="dispatch">Dispatch<a class="headerlink" href="#dispatch" title="Permanent link">&para;</a></h2>
 <p>The view inspects the service / selector signature with
@@ -2735,7 +2738,9 @@ its per-action form <code>get_&lt;action&gt;_progress_reporter()</code>:</p>
 </span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">push_to_websocket</span>
 </span></code></pre></div>
 <p>The per-action hook wins over the catch-all, and the first that returns a
-reporter is the one used; returning <code>None</code> leaves the no-op. Not
+reporter is the one used; returning <code>None</code> leaves the no-op. A hook declaring a
+<code>call_context</code> parameter is handed the request's call context, the same dict
+the dispatch carries. Not
 <code>get_service_kwargs()</code> or <code>get_selector_kwargs()</code>: <code>progress</code> is a pool seed,
 and a key those hooks return under a seed's name is dropped, so a reporter
 returned there never reaches the service. Client <em>input</em> named <code>progress</code> is
@@ -2804,7 +2809,14 @@ valid only beside a <code>collection_selector_spec</code>, the first row renders
 service's return as a list, row by row, and the fourth does not apply: a list is
 never <code>None</code>, so a <code>None</code> return is refused as the author's error, as is any
 return that is no set of rows. Off HTTP, <code>dispatch_spec</code> reports the same list
-as <code>kind="list"</code>.</p>
+as <code>kind="list"</code>. drfs' edge, <code>dispatch_spec</code> and the views, checks the return
+by the declaration, not by the kind the kernel reports: a mapping, a <code>str</code>,
+<code>bytes</code>, a non-iterable or <code>None</code> is refused with <code>ImproperlyConfigured</code>, rather
+than being presented row by row because the kernel called it a list. The
+kernel's own <code>dispatch</code> of the compiled spec does not check it: it answers a
+mapping or a string as <code>kind="list"</code>, and presenting it iterates it. A <code>many</code> spec is not this case: its return is
+already its rows, and it does not compile to <code>returns_many</code> (the kernel refuses
+the two together).</p>
 <p>A single-row service with no output re-read presents its own return;
 <code>allow_none=True</code> on the <code>ServiceSpec</code> declares it may be <code>None</code>, and its output
 schema then admits <code>null</code>. Undeclared, the schema stays strict and the <code>None</code> is
