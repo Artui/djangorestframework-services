@@ -96,3 +96,11 @@ def annotate_invoice(*, instance: Invoice, data: dict[str, str]) -> Invoice:
     exactly those.
     """
     return update_from_input(instance, data).instance
+
+
+def set_payment_terms(*, instance: Invoice, data: dict[str, int]) -> Invoice:
+    """Custom action: record the days the customer has to pay, as a note."""
+    line = f"[terms] net {data['days']}"
+    instance.notes = f"{instance.notes}\n{line}".strip()
+    instance.save(update_fields=["notes", "updated_at"])
+    return instance
