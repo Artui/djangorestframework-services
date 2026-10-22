@@ -56,7 +56,13 @@ dependencies = [
     # ``dispatch``, the ``arguments`` channel on ``PermissionCheck`` and an
     # ``any`` output type. Its module graph has no ring either, and its
     # ``tests/test_drfs_surface.py`` pins every name re-exported here.
-    "django-service-specs>=0.8.0",
+    # 0.14.0 adds the call's own context: one ``call_context`` dict per call,
+    # handed to every stage and reserved as a pool name, which is what DRF's
+    # serializer ``context`` is fed from. It also adds the ``shapes`` group of
+    # output-shaping parameters, ``returns_many`` for a service presenting its
+    # own return as a list, ``json_schema_extra`` on a parameter and an output
+    # field, and a permission check reaching the call's seeds by naming them.
+    "django-service-specs>=0.14.0",
 ]
 
 [project.optional-dependencies]

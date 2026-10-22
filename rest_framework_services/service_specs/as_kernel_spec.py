@@ -207,6 +207,7 @@ def _service(
     # parameter is the author's to fill
     # (test_without_a_spreading_binding_the_key_is_the_author_s_to_fill).
     asked = lookup_keys_the_service_names(spec, taken) if spread else frozenset()
+    list_bounds = _list_bounds(spec)
     return KernelServiceSpec(
         # A spread service's parameters are its caller's arguments, which the
         # kernel refuses as missing where none arrived; a wrapper may fill them
@@ -221,7 +222,11 @@ def _service(
         partial=compiled_partial(spec, partial),
         many=spec.many,
         many_argument=spec.many_argument,
-        **_list_bounds(spec),
+        # Spelled out rather than splatted: the kernel's ``ServiceSpec`` takes
+        # keywords of other types beside these two, which a splat of a
+        # ``dict[str, int | None]`` could fill as far as a type checker knows.
+        many_min_length=list_bounds[0],
+        many_max_length=list_bounds[1],
         validator=(
             SerializerValidator(
                 spec.input_serializer,
@@ -1146,8 +1151,8 @@ def _value_type(value: Any) -> str | None:
     return None
 
 
-def _list_bounds(spec: Any) -> dict[str, int | None]:
-    """A ``many`` spec's list bounds, off the list serializer DRF builds for its input.
+def _list_bounds(spec: Any) -> tuple[int | None, int | None]:
+    """A ``many`` spec's list bounds, fewest then most rows, off the list serializer DRF builds for its input.
 
     DRF decides them in ``many_init`` and ``Meta.list_serializer_class``, so they
     are read off the instance it builds, as drfs' schema reads them; a
@@ -1173,13 +1178,13 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
         and isinstance(serializer, type)
         and issubclass(serializer, serializers.Serializer)
     ):
-        return {}
+        return (None, None)
     try:
         listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
     except UNREADABLE_WITHOUT_A_CALL:
-        return {}
+        return (None, None)
     minimum = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
-    return {"many_min_length": minimum or None, "many_max_length": listed.max_length}
+    return (minimum or None, listed.max_length)
 
 
 def _filtering_from_the_call(
