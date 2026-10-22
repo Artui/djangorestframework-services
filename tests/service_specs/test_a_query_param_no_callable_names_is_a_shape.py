@@ -25,9 +25,10 @@ from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework import serializers
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission
 from typing_extensions import TypedDict, Unpack
 
+from rest_framework_services.service_specs import as_kernel_spec as compiler
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.types.query_param import QueryParam
@@ -146,6 +147,69 @@ class TestAShape:
 
         assert tuple(variant.shapes) == (_SHAPE,)
         assert tuple(as_kernel_spec(spec, spread=True).shapes) == (_SHAPE,)
+
+
+_QUERIES: list[dict[str, Any]] = []
+
+
+class _RecordsTheQuery(BasePermission):
+    def has_permission(self, request: Any, view: Any) -> bool:
+        _QUERIES.append(dict(request.query_params))
+        return True
+
+
+def test_a_permission_class_still_reads_it_off_the_query_string() -> None:
+    _QUERIES.clear()
+    spec = _selector(permission_classes=[_RecordsTheQuery])
+
+    dispatch(spec, principal=AnonymousUser(), arguments={"fields": "body"})
+
+    assert _QUERIES == [{"fields": ["body"]}]
+
+
+@pytest.mark.parametrize("declared", [[_FIELDS], []], ids=["a-shape", "none"])
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(lambda reads: _selector(output_serializer=_Title, reads=reads), id="selector"),
+        pytest.param(
+            lambda reads: _service(
+                reads=reads,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=None, output_serializer=_Title
+                ),
+            ),
+            id="service-s-own",
+        ),
+        pytest.param(
+            lambda reads: _service(
+                reads=reads,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=lambda *, result: result,
+                    output_serializer=_Title,
+                ),
+            ),
+            id="output-selector",
+        ),
+    ],
+)
+def test_the_presenter_is_told_whether_the_call_compiles_a_shape(
+    monkeypatch: pytest.MonkeyPatch, build: Callable[[Any], Any], declared: list[Any]
+) -> None:
+    told: list[bool] = []
+    presenter = compiler._presenter
+
+    def recording(*args: Any, shaped: bool, **kwargs: Any) -> Any:
+        if args[0] is not None:
+            told.append(shaped)
+        return presenter(*args, shaped=shaped, **kwargs)
+
+    monkeypatch.setattr(compiler, "_presenter", recording)
+
+    as_kernel_spec(build(declared))
+
+    assert told == [bool(declared)]
 
 
 def _service_naming(*, fields: str = "all") -> dict[str, str]:

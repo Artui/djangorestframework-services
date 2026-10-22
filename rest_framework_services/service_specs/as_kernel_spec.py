@@ -98,7 +98,10 @@ def as_kernel_spec(
       ``field_audiences`` layered over the serializer's markings. A ``ServiceSpec``'s output serializer is its
       ``output_selector_spec``'s; one whose ``selector`` is ``None`` re-reads
       nothing, so it compiles to no output selector, and its serializer is the
-      compiled spec's own presenter.
+      compiled spec's own presenter. Where that output is a ``LIST`` and the
+      spec is not ``many``, the service returns the rows, which compiles to
+      ``returns_many=True``: the kernel presents the return row by row and
+      describes it as an array of the row.
     - ``permission_classes`` becomes one
       [`DRFPermissionCheck`][rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck];
       an empty sequence, which drfs reads as "no permissions, explicitly",
@@ -114,8 +117,16 @@ def as_kernel_spec(
       ``NotClientInput`` key on any callable of the call left out. A misplaced
       marker is refused here, so at registration. Each declared ``UrlKwarg``
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
-      winning over a reflected one of its name; one the target lookup reads
-      joins the lookup's reads. A name the ``filter_set`` reads is the filter's,
+      winning over a reflected one of its name, and a read unless it is a
+      shape (below); one the target lookup reads joins the lookup's reads.
+    - ``shapes`` is each declared ``QueryParam`` of the top-level spec that no
+      callable of the call takes by name: not the service or selector, a
+      precondition, a target lookup, a ``kwargs`` or ``input_data`` provider,
+      a bare ``**kwargs`` or a ``filter_set`` field. It shapes what is
+      rendered, as a serializer reading ``?fields=`` does, so the kernel hands
+      it to the presenter alone, on ``PresentationContext.shapes``, rather than
+      to a callable. One a callable names stays in ``reads``, and so does a
+      nested spec's own. A name the ``filter_set`` reads is the filter's,
       as the filter field always won the schema. The pool's own names
       (``user``, ``request``, ``view``, ``serializer`` and the kernel's
       reserved seeds) are never arguments, and a declared one is refused. So
@@ -838,7 +849,9 @@ def _presenter(
 
     ``shaped`` is whether the spec it presents for compiles ``shapes``, whose
     values reach the presenter on ``PresentationContext.shapes`` and may change
-    which keys it renders.
+    which keys it renders. Each of its three sites, a selector spec's, a
+    service's own and an output selector's, is held by its case of
+    test_the_presenter_is_told_whether_the_call_compiles_a_shape.
     """
     if serializer is None:
         if audiences:
