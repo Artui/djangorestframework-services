@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from rest_framework.permissions import AllowAny
+
 from invoices.models import Invoice
 from invoices.selectors import get_invoice, list_invoices
 from invoices.serializers import (
     MAX_NET_DAYS,
     MIN_NET_DAYS,
     AnnotateInvoiceInput,
+    InvoiceFieldsSerializer,
     InvoiceSerializer,
     NetDaysField,
     PaymentTermsInput,
@@ -20,8 +25,11 @@ from invoices.services import (
     create_invoice,
     delete_invoice,
     mark_invoice_sent,
+    record_operation,
     set_payment_terms,
     update_invoice,
+    void_drafts,
+    void_drafts_summary,
 )
 from rest_framework_services import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
@@ -135,3 +143,62 @@ class InvoiceViewSet(ServiceViewSet):
     )
     def terms(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Record the days an invoice stays open; the spec's registry bounds them."""
+
+
+# -----------------------------------------------------------------------
+# Specs for a caller that is not an HTTP request. None is routed: each is run
+# by ``dispatch_spec`` or by the kernel's own ``dispatch``.
+# -----------------------------------------------------------------------
+
+
+def operation_from_context(*, call_context: dict[str, Any]) -> dict[str, str]:
+    """A ``kwargs`` provider naming ``call_context`` is handed the call's own dict.
+
+    ``action`` is one of the four entries the edge fills in; the name a view or
+    a transport gave the operation is what the service records.
+    """
+    return {"operation": call_context["action"] or "unnamed"}
+
+
+RECORD_OPERATION_SPEC = ServiceSpec(
+    service=record_operation,
+    kwargs=operation_from_context,
+    output_selector_spec=_invoice_response_spec(),
+)
+
+# ``fields`` is declared and no callable of the call names it: ``list_invoices``
+# takes only ``status``. So the kernel keeps it out of ``reads`` (what the
+# selector runs on) and holds it in ``shapes``, which only the output
+# serializer sees, on the request it reads ``fields`` from.
+FIELDS_SPEC = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=list_invoices,
+    output_serializer=InvoiceFieldsSerializer,
+    # The kernel's own ``dispatch`` refuses a spec that declares no permissions.
+    permission_classes=[AllowAny],
+    reads=[
+        QueryParam("status"),
+        QueryParam("fields", description="Comma-separated invoice fields to return."),
+    ],
+)
+
+# A list output with no selector and no ``many``: the service's return is the
+# rows, so the kernel's compiled spec answers a list. Over HTTP this output
+# kind is valid only beside a ``collection_selector_spec``, so it is run off
+# HTTP and not routed.
+_VOIDED_ROWS = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=None,
+    output_serializer=InvoiceSerializer,
+)
+
+VOID_DRAFTS_SPEC = ServiceSpec(
+    service=void_drafts, output_selector_spec=_VOIDED_ROWS, permission_classes=[AllowAny]
+)
+
+# The same declaration over a service that returns a count: no set of rows.
+VOID_DRAFTS_SUMMARY_SPEC = ServiceSpec(
+    service=void_drafts_summary,
+    output_selector_spec=_VOIDED_ROWS,
+    permission_classes=[AllowAny],
+)
