@@ -18,6 +18,7 @@ from django_service_specs.adapters.filters.filter_set_parameters import filter_s
 from django_service_specs.authorization.permission_check import PermissionCheck
 from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.parameters.parameters import Parameter, Parameters
+from django_service_specs.pool.provider_keys import provider_keys
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
@@ -173,7 +174,7 @@ def as_kernel_spec(
     """
     if isinstance(spec, AffordanceDeclarer):
         return _service(spec, partial=partial, spread=spread, seeded=seeded)
-    return _selector(spec, role=None, hidden=frozenset(), declared=(), seeded=seeded)
+    return _selector(spec, role=None, hidden=frozenset(), declared=(), seeded=seeded, shaped=False)
 
 
 def _service(
@@ -182,7 +183,13 @@ def _service(
     hidden = _owned_keys(
         [spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
     )
-    declared = _declared(spec.reads, label="ServiceSpec")
+    declared, shapes = _shapes(
+        spec,
+        _declared(spec.reads, label="ServiceSpec"),
+        callables=[spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
+        providers=[spec.kwargs, spec.input_data, *_lookup_providers(spec)],
+        filtered=frozenset(),
+    )
     _refuse_hidden_reads(
         spec.reads, [spec.service, *(spec.preconditions or ())], label="ServiceSpec"
     )
@@ -200,7 +207,7 @@ def _service(
         [parameter for parameter in declared if parameter.name not in taken],
         skip=frozenset(taken),
     )
-    output, presenter = _output(spec)
+    output, presenter = _output(spec, shaped=bool(shapes))
     # Under a spreading binding a callable naming a read of the target lookup
     # is handed the caller's value for it by the edge, so the caller is asked
     # for one it left out (``_asking``). Under ``AUTO`` and ``BUNDLE`` the
@@ -219,6 +226,7 @@ def _service(
         ),
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
+        shapes=shapes,
         partial=compiled_partial(spec, partial),
         many=spec.many,
         many_argument=spec.many_argument,
@@ -310,6 +318,7 @@ def _selector(
     declared: Sequence[Parameter],
     audiences: Mapping[str, FieldMarking] | None = None,
     seeded: frozenset[str] = frozenset(),
+    shaped: bool,
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -317,6 +326,9 @@ def _selector(
     reads; the rest are the service's. An output selector takes none: it
     re-reads the service's result, with no caller's arguments to read; the
     call's ``filter_data`` reaches its ``filter_set`` alone (``_output``).
+    Only a top-level selector spec compiles ``shapes``: the kernel refuses
+    them on a nested one. ``shaped`` says an output selector's service spec
+    compiles some, which its presenter renders by.
     """
     label = "SelectorSpec" if role is None else f"ServiceSpec.{role}_selector_spec"
     if role is not None:
@@ -326,9 +338,21 @@ def _selector(
             f"{label} declares no selector, and only an output selector may: there is "
             "nothing else to run. Declare the selector that reads the rows."
         )
+    shapes = Parameters()
     if role is None:
         hidden = _owned_keys([spec.selector, *(spec.preconditions or ())])
-        declared = _declared(spec.reads, label=label)
+        declared, shapes = _shapes(
+            spec,
+            _declared(spec.reads, label=label),
+            callables=[spec.selector, *(spec.preconditions or ())],
+            providers=[spec.kwargs],
+            filtered=(
+                filter_set_parameters(spec.filter_set).names()
+                if spec.filter_set is not None
+                else frozenset()
+            ),
+        )
+        shaped = bool(shapes)
         _refuse_hidden_reads(spec.reads, [spec.selector, *(spec.preconditions or ())], label=label)
         audiences = spec.field_audiences
     reads = Parameters()
@@ -368,6 +392,7 @@ def _selector(
             _permissions(spec, route_reads=_route_reads(spec, reads)) if role is None else None
         ),
         reads=reads,
+        shapes=shapes,
         # A target lookup's rows are the service's to consume, never presented.
         presenter=(
             _presenter(
@@ -376,6 +401,7 @@ def _selector(
                 label=label,
                 context=spec.output_serializer_context,
                 value_keyword=_value_keyword(spec, role),
+                shaped=shaped,
             )
             if role in (None, "output")
             else None
@@ -725,14 +751,22 @@ def _nested(
     # lookup has no such fallback, so one with no selector is still refused.
     if nested is None or (role == "instance" and nested.selector is None):
         return None
-    return _selector(nested, role=role, hidden=hidden, declared=declared, seeded=seeded)
+    return _selector(
+        nested, role=role, hidden=hidden, declared=declared, seeded=seeded, shaped=False
+    )
 
 
-def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter | None]:
-    """The compiled output selector, or the presenter a selector-less one moves onto the service."""
+def _output(
+    spec: Any, *, shaped: bool
+) -> tuple[KernelSelectorSpec | None, SerializerPresenter | None]:
+    """The compiled output selector, or the presenter a selector-less one moves onto the service.
+
+    ``shaped`` says the service spec compiles ``shapes``, which reach either
+    presenter.
+    """
     output = spec.output_selector_spec
     if output is None:
-        _presenter(None, spec.field_audiences, label="ServiceSpec")
+        _presenter(None, spec.field_audiences, label="ServiceSpec", shaped=shaped)
         return None, None
     audiences = _audiences(output, spec.field_audiences)
     # A ``many`` service's result is its list of rows, which a selector re-reading
@@ -746,6 +780,7 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
             hidden=frozenset(),
             declared=(),
             audiences=audiences,
+            shaped=shaped,
         )
         # The kernel binds an output ``filter_set`` to the re-read's pool, which
         # carries the service's return and nothing of the call. So where the
@@ -771,6 +806,7 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
         label="ServiceSpec",
         context=output.output_serializer_context,
         value_keyword=_value_keyword(output, "output", many=spec.many),
+        shaped=shaped,
     )
 
 
@@ -796,7 +832,14 @@ def _presenter(
     label: str,
     context: Callable[..., Mapping[str, Any]] | None = None,
     value_keyword: str | None = None,
+    shaped: bool,
 ) -> SerializerPresenter | None:
+    """The ``SerializerPresenter`` for ``serializer``, or none where there is no serializer.
+
+    ``shaped`` is whether the spec it presents for compiles ``shapes``, whose
+    values reach the presenter on ``PresentationContext.shapes`` and may change
+    which keys it renders.
+    """
     if serializer is None:
         if audiences:
             raise ImproperlyConfigured(
@@ -886,6 +929,65 @@ def _lookup_selectors(spec: Any) -> Iterator[Callable[..., Any]]:
         # second, which leaves the refusal naming the missing selector to run.
         if nested is not None and nested.selector is not None:
             yield nested.selector
+
+
+def _lookup_providers(spec: Any) -> Iterator[Callable[..., Any]]:
+    for role in ("instance", "collection"):
+        nested = getattr(spec, f"{role}_selector_spec")
+        if nested is not None and nested.kwargs is not None:
+            yield nested.kwargs
+
+
+def _shapes(
+    spec: Any,
+    declared: list[Parameter],
+    *,
+    callables: Sequence[Callable[..., Any]],
+    providers: Sequence[Callable[..., Any] | None],
+    filtered: frozenset[str],
+) -> tuple[list[Parameter], Parameters]:
+    """``declared`` split into the reads and the ``shapes``: each ``QueryParam`` no callable names.
+
+    A ``QueryParam`` is read-shaping by its own docstring: a value a serializer
+    reads off ``request.query_params``. The kernel hands a shape to the
+    presenter alone, never to a callable, so one that any callable of the
+    call takes by name stays a read, as it is handed today. Counted, each kind
+    held by its case of test_a_query_param_a_callable_names_stays_a_read:
+
+    - ``callables``, the service or selector (``service``, ``selector``), its
+      preconditions (``service-precondition``, ``selector-precondition``) and a
+      target lookup's selector (``instance-lookup``, ``collection-lookup``),
+      by a named parameter or an ``Unpack``-ed key (``service-unpacked-key``);
+    - ``providers``, the spec's ``kwargs`` (``service-provider``,
+      ``selector-provider``), its ``input_data`` (``input-data``) and a target
+      lookup's ``kwargs`` (``lookup-provider``), which are called from the
+      pool the reads join, by a named parameter, and also by a key a typed one
+      is annotated to fill (``service-provider-fills``,
+      ``selector-provider-fills``), which the kernel refuses beside a shape;
+    - any of them taking a bare ``**kwargs``, which takes every name
+      (``service-kwargs``, ``selector-kwargs``, ``service-provider-kwargs``);
+    - ``filtered``, a selector spec's ``filter_set`` fields, which are the
+      filter's reads (``selector-filter``).
+
+    The answer is read off the drfs spec alone, so every variant of it compiles
+    the same ``shapes`` (test_every_variant_of_one_spec_compiles_the_same_shapes).
+    A ``UrlKwarg`` is the route's, never a shape (test_a_url_kwarg_is_never_a_shape).
+    """
+    queried = {entry.name for entry in spec.reads if isinstance(entry, QueryParam)}
+    named: set[str] = set(filtered)
+    for fn in (*callables, *(provider for provider in providers if provider is not None)):
+        if _takes_any_name(fn):
+            return declared, Parameters()
+        named |= _names(_reflected(fn, hidden=frozenset()))
+    for provider in providers:
+        keys = provider_keys(provider)
+        if keys is not None:
+            named |= keys.filled | keys.declinable
+    shaping = queried - named
+    return (
+        [parameter for parameter in declared if parameter.name not in shaping],
+        Parameters(tuple(parameter for parameter in declared if parameter.name in shaping)),
+    )
 
 
 def _takes_its_signature(spec: Any, spread: bool) -> bool:

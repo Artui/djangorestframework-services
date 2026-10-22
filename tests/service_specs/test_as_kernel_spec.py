@@ -152,14 +152,19 @@ class TestDeclaredReads:
             ],
         )
 
-        assert tuple(_kernel_service(spec).reads) == (
+        compiled = _kernel_service(spec)
+        assert tuple(compiled.reads) == (
             Parameter("project_pk", "integer", required=True, help="The project."),
             Parameter("team_pk", "string", default="1"),
+        )
+        # No callable of the call names it, so it shapes what is rendered
+        # (tests/service_specs/test_a_query_param_no_callable_names_is_a_shape.py).
+        assert tuple(compiled.shapes) == (
             Parameter("fields", "string", default=None, help="Fields to return."),
         )
 
     def test_a_selector_spec_s_declared_reads_join_its_reflected_ones(self) -> None:
-        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_every, reads=[QueryParam("fields")])
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_every, reads=[UrlKwarg("fields")])
 
         assert tuple(_kernel_selector(spec).reads) == (Parameter("fields", "string"),)
 
@@ -317,7 +322,8 @@ class TestAReadItsReceiverHides:
             reads=[QueryParam("other")],
         )
 
-        assert _kernel_selector(spec).reads.get("other") is not None
+        # A shape, since no callable names it, and one of the call's parameters.
+        assert _kernel_selector(spec).parameters().get("other") is not None
 
 
 class TestReflectedReads:
