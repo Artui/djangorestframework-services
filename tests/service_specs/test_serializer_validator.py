@@ -641,6 +641,19 @@ def test_a_registered_view_alone_answers_for_the_serializer_context() -> None:
     assert _Spy.seen["extra"] == 1
 
 
+def test_a_plain_view_alone_is_kept_beside_no_request() -> None:
+    # The view answers no get_serializer_context, so the context is built from
+    # the pair; a request is not made up for it (the offline pair is only for a
+    # call carrying neither).
+    class View:
+        pass
+
+    view = View()
+    SerializerValidator(_Spy).validate({"title": "hi"}, _ambient(view=view))
+    assert _Spy.seen["view"] is view
+    assert _Spy.seen["request"] is None
+
+
 def test_a_registered_request_s_user_is_what_a_current_user_default_reads() -> None:
     class S(serializers.Serializer):
         owner = serializers.HiddenField(default=serializers.CurrentUserDefault())

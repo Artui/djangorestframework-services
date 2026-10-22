@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.http import HttpRequest
 from django.test import RequestFactory
 from django_service_specs.authorization.not_permitted import NotPermitted as KernelNotPermitted
 from django_service_specs.dispatch.authorize import authorize
@@ -20,6 +21,8 @@ from django_service_specs.dispatch.authorize_target import authorize_target
 from django_service_specs.dispatch.dispatch import dispatch
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
+from rest_framework.request import Request
+from rest_framework.views import APIView
 
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
@@ -459,6 +462,35 @@ class TestTheCallsRequestAndView:
         assert request.user is principal
         assert view.request is request
         assert view.action == "publish"
+        assert dict(arrived.GET.lists()) == {"thread": ["7"]}
+
+    def test_a_carried_django_request_is_wrapped_beside_a_carried_view(self) -> None:
+        # The wrap must not wait on a missing view: with both carried, a bare
+        # Django request would reach the class as a WSGIRequest with another
+        # user and no query_params.
+        principal = AnonymousUser()
+        arrived = RequestFactory().get("/chat/", {"thread": "7"})
+        arrived.user = "arrived-user"
+        carried_view = APIView()
+        carried_view.action = "publish"
+        carried_view.kwargs = {}
+        spec = ServiceSpec(
+            service=_create, permission_classes=[_Pairs], reads=[QueryParam("fields")]
+        )
+
+        authorize(
+            spec,
+            principal,
+            arguments={"fields": "name"},
+            call_context={"request": arrived, "view": carried_view},
+        )
+
+        request, view = _asked()
+        assert isinstance(request, Request)
+        assert not isinstance(request, HttpRequest)
+        assert request.user is principal
+        assert dict(request.query_params.lists()) == {"fields": ["name"]}
+        assert view is carried_view
         assert dict(arrived.GET.lists()) == {"thread": ["7"]}
 
     def test_a_carried_django_request_asked_with_no_arguments_keeps_its_query_string(

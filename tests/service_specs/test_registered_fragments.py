@@ -14,6 +14,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.output.output import OutputField
 from django_service_specs.parameters.parameters import Parameter
+from django_service_specs.schema.output_schema import output_schema
 from django_service_specs.types.utils import (
     OUTPUT_FIELD_SCHEMA_KEYWORDS,
     PARAMETER_SCHEMA_KEYWORDS,
@@ -308,6 +309,24 @@ def test_the_field_s_own_help_label_and_null_stand_beside_the_fragment() -> None
     assert (parameter.help, parameter.nullable, parameter.required) == ("Own.", True, False)
     field = _output_field(fragment, label="Own", allow_null=True)
     assert (field.label, field.nullable) == ("Own", True)
+
+
+def test_a_fragment_that_admits_null_makes_an_output_field_nullable_that_the_field_does_not() -> (
+    None
+):
+    # The field's own ``allow_null`` is False, so the nullable marking can only
+    # come from the fragment; it is not dropped for the field's.
+    class _Out(serializers.Serializer):
+        value = _Registered(allow_null=False)
+
+    output = _output(
+        describe_serializer(_Out), path=(), registry=_registry({"type": ["string", "null"]})
+    )
+
+    (field,) = output
+    assert field.type == "string"
+    assert field.nullable is True
+    assert output_schema(output)["properties"]["value"]["type"] == ["string", "null"]
 
 
 def test_a_rule_wins_over_the_walk_of_a_nested_serializer() -> None:

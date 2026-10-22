@@ -852,7 +852,10 @@ def serializer_context(
 
     One branch to coverage for the offline pair: a request alone is held
     by test_a_registered_request_alone_is_kept_beside_no_view, a view
-    alone by test_a_registered_view_alone_answers_for_the_serializer_context,
+    alone by test_a_plain_view_alone_is_kept_beside_no_request (its view
+    answers no ``get_serializer_context``, so the context's ``request`` is
+    what the guard leaves it, ``None``; a view that does answer it would pass
+    with the guard weakened),
     and neither by test_the_serializer_context_carries_an_offline_request_for_the_principal.
     A ``None`` entry in the call's context is no value, and the pair is built
     over it (test_a_none_in_the_call_context_falls_through_to_the_offline_pair,
