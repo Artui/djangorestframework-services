@@ -158,8 +158,9 @@ def test_a_field_named_like_a_seed_validates_into_data_through_the_kernel() -> N
 # --- the DRF edge answers as it did before the kernel filled a marked read ---------------
 #
 # Pinned against the answers the edge gave while it compiled a seed's name out of the
-# reads (``kernel_spec_variant(seeded=)``): the lookup reads the seed beside a field of
-# its name, and a spread service names it beside a lookup that reads it.
+# reads for each call, which the kernel's mark made unnecessary: the lookup reads the
+# seed beside a field of its name, and a spread service names it beside a lookup that
+# reads it.
 
 
 def _a_post(seen: dict[str, Any]) -> Any:

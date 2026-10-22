@@ -275,7 +275,7 @@ def prepare_edge_call(
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
         seeds = edge_seeds(pool_seeds, request=request, view=view)
-        variant: Any = _seed_filled_variant(spec, seeds, unguarded=True, server_input=False)
+        variant: Any = kernel_spec_variant(spec, unguarded=True, server_input=False)
         # ``BUNDLE`` spreads none of the caller's input into the selector's
         # parameters, as on 0.57.0, and every selector view dispatches it
         # (``bundled_selector``).
@@ -362,9 +362,8 @@ def prepare_edge_call(
         seeds = edge_seeds(pool_seeds, request=request, view=view)
         variant = cast(
             KernelServiceSpec,
-            _seed_filled_variant(
+            kernel_spec_variant(
                 spec,
-                seeds,
                 partial=partial,
                 unguarded=True,
                 server_input=False,
@@ -518,9 +517,8 @@ def prepare_edge_call(
     )
     service = cast(
         KernelServiceSpec,
-        _seed_filled_variant(
+        kernel_spec_variant(
             spec,
-            seeds,
             partial=partial,
             unguarded=True,
             target=handed,
@@ -821,30 +819,6 @@ def _lookup_reads(spec: ServiceSpec[Any, Any, Any]) -> frozenset[str]:
     return frozenset(target.reads.names() & (_callable_param_names(target.selector) or set()))
 
 
-def _seed_filled_variant(spec: Any, seeds: PoolSeeds, **options: Any) -> Any:
-    """``kernel_spec_variant(spec, **options)``, with no read off a signature a seed of the call fills.
-
-    A selector's, a target lookup's or a spread service's parameter named like a
-    seed the call registers is the seed's, as a service's always was: compiled
-    as ``kernel_spec_variant(seeded=)``, it is no argument, so the kernel fills
-    it from the seed rather than refusing an argument meeting one
-    (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed,
-    test_a_spread_service_reads_the_seed). A call whose seeds no signature
-    names - every call that registers none of its own - keeps the variant it
-    always had. A declared read of the name is compiled as it was declared,
-    and the kernel refuses it.
-    """
-    variant = kernel_spec_variant(spec, **options)
-    names = variant.reads.names()
-    target = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else None
-    if target is not None:
-        names = names | target.reads.names()
-    seeded = frozenset(names & seeds.reserved)
-    if not seeded:
-        return variant
-    return kernel_spec_variant(spec, **options, seeded=seeded)
-
-
 def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:
     """The input serializer's fields named in ``seeded``: what a seed the call registers takes.
 
@@ -882,12 +856,10 @@ def server_input(
     ``many`` call), and wins over the view hook's value on a shared key, as it
     did on main. The edge merges the answer over the caller's arguments, so a
     server key always beats the client's. It is the edge's rather than the
-    kernel's because the kernel relaxes a Validator field only for a provider
-    annotated to fill it, so the untyped provider drfs has always taken would
-    meet a missing-field refusal before it ran
-    (test_input_data_applies_off_http); the dispatched variant carries none, so
-    the provider runs once (test_the_input_data_provider_runs_once_per_call). A
-    key the provider answers ``UNSET`` is declined, as main read it.
+    kernel's so that it runs once: the dispatched variant carries none
+    (test_the_input_data_provider_runs_once_per_call,
+    test_input_data_applies_off_http). A key the provider answers ``UNSET`` is
+    declined, as main read it.
     """
     merged: dict[str, Any] = dict(hooks.input_data or {})
     provider = spec.input_data
@@ -1272,14 +1244,9 @@ def _route_author_values(
 
     The spec's provider is called here, from ``view`` and ``request``, once per
     call (test_a_provider_runs_once_per_call), and the dispatched variant
-    carries none (``kernel_spec_variant(server_input=False)``). The kernel
-    relaxes a parameter only for a provider annotated to fill it, so the
-    untyped provider drfs has always taken would meet a missing-argument
-    refusal before it ran (test_a_provider_satisfies_the_requirement), and a
-    typed one declining a key it is annotated to fill would reach the run as a
-    ``KeyError`` (test_a_typed_provider_declining_a_required_key_is_refused_as_missing).
-    A key either answers ``UNSET`` is declined, as main read it, so the
-    caller's value stands.
+    carries none (``kernel_spec_variant(server_input=False)``), or the kernel
+    would call it a second time. A key either answers ``UNSET`` is declined, as
+    main read it, so the caller's value stands.
 
     A hook's value naming a seed of the call - ``request``, ``view``,
     ``progress``, ``user`` and the rest of the reserved names, or a project's

@@ -179,11 +179,13 @@ def as_kernel_spec(
     ``reads`` read, so ``def destroy(*, instance, hard=False)`` is never handed
     a ``hard`` the request sent (see ``_takes_its_signature``).
 
-    ``seeded`` names the seeds a dispatch registers beyond the pool's own, which
-    the DRF edge compiles per call: a signature's parameter of such a name -
-    the selector's, a target lookup's, a spread service's - is no argument, and
-    the seed fills it, as it always filled a service's. A declared read of the
-    name stays one, which the kernel refuses as an argument meeting a seed.
+    ``seeded`` names the seeds a dispatch registers beyond the pool's own, and
+    compiles a signature's parameter of such a name - the selector's, a target
+    lookup's, a spread service's - out of the reads altogether. It is optional:
+    each such parameter is marked ``reflected``, so the kernel fills it from a
+    registered seed on every dispatch without it, and the DRF edge no longer
+    passes it. A declared read of the name stays one, which the kernel refuses
+    as an argument meeting a seed.
 
     **What the kernel refuses at construction is stripped or refused here**,
     naming the drfs field. Stripped, because drfs never read them: an output
