@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+from decimal import Decimal
 from typing import Any
 
 from django_service_specs.output.output import OutputField
@@ -119,3 +121,54 @@ def test_a_selector_less_output_reads_its_own_registry_else_the_service_spec_s()
     inherited = kernel_spec(_with_output(None, re_reads=False))
     assert _amount_field(own.presenter).type == "integer"
     assert _amount_field(inherited.presenter).json_schema_extra == {"pattern": "^[0-9]+$"}
+
+
+# A rule the kernel can state only part of: no type, so neither the format nor
+# the bound has a seat on the compiled field.
+_PARTLY = JsonSchemaRegistry(
+    fields=((_MoneyField, {"format": "date", "minimum": 1, "pattern": "^[0-9]+$"}),)
+)
+
+
+def test_a_rule_the_kernel_cannot_state_whole_still_compiles() -> None:
+    spec = ServiceSpec(
+        service=_service,
+        input_serializer=_In,
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out),
+        json_schema_registry=_PARTLY,
+    )
+    compiled = kernel_spec(spec)
+    parameter = _amount_parameter(compiled)
+    assert (parameter.type, parameter.format, parameter.minimum) == ("any", None, None)
+    assert parameter.json_schema_extra == {"pattern": "^[0-9]+$"}
+    # An output field has no bound to set, so the bound is advertised there.
+    field = _amount_field(compiled.presenter)
+    assert (field.type, field.format) == ("any", None)
+    assert field.json_schema_extra == {"minimum": 1, "pattern": "^[0-9]+$"}
+    # drfs' own schema keeps describing the whole fragment.
+    schema = spec_to_json_schema(spec)
+    assert schema is not None
+    assert schema["properties"]["amount"] == {"format": "date", "minimum": 1, "pattern": "^[0-9]+$"}
+
+
+@dataclasses.dataclass
+class _Order:
+    amount: Decimal
+
+
+def test_a_dataclass_input_takes_fields_rules_in_the_compile_and_python_types_in_drfs() -> None:
+    by_type = JsonSchemaRegistry(python_types=((Decimal, {"type": "string", "pattern": "^1"}),))
+    spec = ServiceSpec(service=_service, input_serializer=_Order, json_schema_registry=by_type)
+    schema = spec_to_json_schema(spec)
+    assert schema is not None
+    assert schema["properties"]["amount"] == {"type": "string", "pattern": "^1"}
+    # The compile walks the DataclassSerializer's fields, so the type's rule is
+    # not read there ...
+    parameter = _amount_parameter(kernel_spec(spec))
+    assert (parameter.format, parameter.json_schema_extra) == ("decimal", None)
+    # ... and a rule on the field class the type is read through is.
+    by_field = JsonSchemaRegistry(
+        fields=((serializers.DecimalField, {"type": "string", "pattern": "^1"}),)
+    )
+    spec = ServiceSpec(service=_service, input_serializer=_Order, json_schema_registry=by_field)
+    assert _amount_parameter(kernel_spec(spec)).json_schema_extra == {"pattern": "^1"}

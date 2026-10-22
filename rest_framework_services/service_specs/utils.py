@@ -35,11 +35,12 @@ from django.db import DatabaseError
 from django.db.models import QuerySet
 from django.http import HttpRequest, QueryDict
 from django.utils.translation import gettext
+from django_service_specs.output.output import OutputField
 from django_service_specs.parameters.coded_message import CodedMessage
 from django_service_specs.parameters.invalid_arguments import (
     InvalidArguments as KernelInvalidArguments,
 )
-from django_service_specs.parameters.parameters import FORMATS, Parameter, Parameters
+from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.types.is_async import is_async
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
@@ -1220,71 +1221,50 @@ def registered_fragment(
     return None
 
 
-# The JSON Schema keywords each kernel declaration states from its own fields,
-# which its ``json_schema_extra`` refuses: the keys of the kernel's
-# ``PARAMETER_SCHEMA_KEYWORDS`` and ``OUTPUT_FIELD_SCHEMA_KEYWORDS``, which it
-# does not export. test_every_keyword_the_kernel_refuses_is_set_or_dropped
-# compares these with the kernel's own, so a keyword it adds fails a test
-# here rather than a consumer's compile.
-_PARAMETER_STATED: Final = frozenset(
-    {
-        "type",
-        "items",
-        "minItems",
-        "maxItems",
-        "properties",
-        "required",
-        "additionalProperties",
-        "format",
-        "minimum",
-        "maximum",
-        "enum",
-        "anyOf",
-        "const",
-        "default",
-        "description",
-    }
-)
-_OUTPUT_STATED: Final = frozenset(
-    {"type", "items", "properties", "required", "format", "enum", "oneOf", "const", "title"}
-)
-
 _JSON_TYPES: Final = frozenset({"string", "integer", "number", "boolean", "array", "object"})
 
 
 def fragment_keywords(fragment: Mapping[str, Any], *, output: bool) -> dict[str, Any]:
     """A registry fragment as keyword arguments for a ``Parameter``, or an ``OutputField`` when ``output``.
 
-    Split in two, each class held by its tests in ``test_registered_fragments``:
+    The compiled spec takes what the kernel can state of the fragment and drops
+    the rest, so a registry drfs' own builders describe never stops a spec
+    compiling, and those builders keep describing the whole fragment. Split in
+    two, each class held by its tests in ``test_registered_fragments``:
 
     - **The keywords a field spells set it**
       (test_a_keyword_a_parameter_field_spells_sets_that_field,
       test_a_keyword_an_output_field_spells_sets_that_field): ``type``, a list
-      of one type and ``"null"`` as ``nullable``; ``format`` within the
-      kernel's four; ``enum`` as ``choices``, typed by its values when the
-      fragment names no type; an ``items`` naming a bare type; and on a ``Parameter`` the
-      bounds (``minimum``, ``maximum``, ``minItems`` and ``maxItems`` as
-      ``min_length`` and ``max_length``) and ``description`` as ``help``, on an
+      of one type and ``"null"`` as ``nullable``; ``format``; ``enum`` as
+      ``choices``, typed by its values when the fragment names no type; an
+      ``items`` naming a bare type; on a ``Parameter`` the bounds
+      (``minimum``, ``maximum``, ``minItems`` and ``maxItems`` as ``min_length``
+      and ``max_length``) and ``description`` as ``help``; on an
       ``OutputField`` ``title`` as ``label``. The kernel's shape check then
       enforces them off HTTP.
     - **The rest is ``json_schema_extra``**, advertised and never enforced
       (test_a_keyword_no_parameter_field_spells_is_json_schema_extra,
-      test_a_keyword_no_output_field_spells_is_json_schema_extra), less what the
-      kernel refuses there and no field takes, which is dropped: ``properties``,
-      ``required``, ``additionalProperties``, ``anyOf``, ``oneOf``, ``const``,
-      a parameter's ``default`` and an ``items`` saying more than a type
-      (test_a_parameter_keyword_the_kernel_refuses_and_no_field_takes_is_dropped,
-      test_an_output_keyword_the_kernel_refuses_and_no_field_takes_is_dropped).
+      test_a_keyword_no_output_field_spells_is_json_schema_extra).
 
-    **A ``format`` outside the kernel's four is dropped**, from the compiled
-    spec only: drfs' own builders keep advertising it
-    (test_a_format_outside_the_kernel_s_four_is_dropped). The kernel decodes
-    each of its four and has no seat for one that only describes.
+    **The kernel decides what is dropped**, by refusing it, so nothing here
+    restates its rules: each keyword a field spells, in the order above, is
+    kept only where the kernel builds the declaration with it beside those
+    kept before it (test_a_bound_the_format_makes_legal_is_kept), and each
+    other keyword only where the kernel takes it in ``json_schema_extra``
+    (the ``kept-beside-a-refused-one`` case of
+    test_what_the_kernel_refuses_is_dropped_and_the_rest_kept, whose every case
+    asserts the kernel refuses what was dropped). So a keyword that contradicts
+    the type goes - a ``format`` with no type, ``minimum`` on a string, a
+    ``maximum`` below the ``minimum`` kept - as does a ``format`` outside the
+    kernel's four (test_a_format_outside_the_kernel_s_four_is_dropped), a value
+    that is not JSON, and a keyword the kernel's tables refuse in
+    ``json_schema_extra`` that no field takes
+    (test_every_keyword_the_kernel_refuses_is_set_or_dropped). A list or a
+    mapping where the kernel takes a name is no name, and is dropped before
+    the kernel sees it (``_named``, test_a_format_that_is_no_name_is_dropped).
 
-    The result always carries ``type``, ``any`` where the fragment names none.
-    A fragment whose keywords contradict its type (a ``format`` on an
-    ``integer``) is refused by the kernel when the spec compiles, naming the
-    declaration.
+    The result always carries ``type``, ``any`` where the fragment names none
+    the kernel takes.
     """
     declared: dict[str, Any] = {}
     kind = fragment.get("type")
@@ -1301,42 +1281,66 @@ def fragment_keywords(fragment: Mapping[str, Any], *, output: bool) -> dict[str,
     if kind is None and isinstance(enum, list):
         kind = _enum_type(enum)
     declared["type"] = kind if _named(kind, _JSON_TYPES) else "any"
-    if _named(fragment.get("format"), FORMATS):
-        declared["format"] = fragment["format"]
-    # ``any`` lists no choices in the kernel (``mixed-enum`` of
-    # test_a_fragment_the_kernel_cannot_type_declares_any).
-    if isinstance(enum, list) and declared["type"] != "any":
-        declared["choices"] = (
-            tuple((value, str(value)) for value in enum) if output else tuple(enum)
-        )
+    stated: list[tuple[str, Any]] = []
     items = fragment.get("items")
     # Only a bare element type: a Parameter's ``items`` is a type name, and an
     # element's own keywords have no seat on it. One arc to coverage, each
-    # condition held by a case of test_a_fragment_s_items_saying_more_than_a_type_is_dropped.
+    # condition held by a case of test_a_fragment_s_items_saying_more_than_a_type_is_dropped:
+    # the mapping by ``a-tuple-schema``, its keys by ``more-than-a-type``, and
+    # the JSON type by ``a-kernel-only-type``, which the kernel itself takes.
     if (
         isinstance(items, Mapping)
         and items.keys() == {"type"}
         and _named(items["type"], _JSON_TYPES)
     ):
-        declared["items"] = items["type"]
-    if output:
-        declared["label"] = fragment.get("title")
-    else:
-        declared.update({name: fragment.get(keyword) for keyword, name in _PARAMETER_BOUNDS})
-        declared["help"] = fragment.get("description")
-    stated = _OUTPUT_STATED if output else _PARAMETER_STATED
-    extra = {key: value for key, value in fragment.items() if key not in stated}
+        stated.append(("items", items["type"]))
+    # The kernel names the formats it takes and refuses the rest; only a
+    # string can be asked about, as it hashes the name
+    # (test_a_format_that_is_no_name_is_dropped).
+    if isinstance(fragment.get("format"), str):
+        stated.append(("format", fragment["format"]))
+    if isinstance(enum, list):
+        choices = tuple((value, str(value)) for value in enum) if output else tuple(enum)
+        stated.append(("choices", choices))
+    keywords = _OUTPUT_FIELDS if output else _PARAMETER_FIELDS
+    stated.extend((name, fragment[keyword]) for keyword, name in keywords if keyword in fragment)
+    declaration = OutputField if output else Parameter
+    for name, value in stated:
+        if _states(declaration, {**declared, name: value}):
+            declared[name] = value
+    # One keyword at a time, so the one the kernel refuses is the one dropped
+    # (``kept-beside-a-refused-one`` of
+    # test_what_the_kernel_refuses_is_dropped_and_the_rest_kept); the kernel
+    # judges each keyword of ``json_schema_extra`` on its own.
+    extra = {
+        key: value
+        for key, value in fragment.items()
+        if _states(declaration, {**declared, "json_schema_extra": {key: value}})
+    }
     if extra:
         declared["json_schema_extra"] = extra
     return declared
 
 
-_PARAMETER_BOUNDS: Final = (
+# The fragment keywords a field of each declaration spells beyond ``type``,
+# ``format``, ``enum`` and ``items``, with the field each sets.
+_PARAMETER_FIELDS: Final = (
     ("minimum", "minimum"),
     ("maximum", "maximum"),
     ("minItems", "min_length"),
     ("maxItems", "max_length"),
+    ("description", "help"),
 )
+_OUTPUT_FIELDS: Final = (("title", "label"),)
+
+
+def _states(declaration: type[Parameter] | type[OutputField], keywords: dict[str, Any]) -> bool:
+    """Whether the kernel builds ``declaration`` from ``keywords``: its own refusal is the rule."""
+    try:
+        declaration("registered", **keywords)
+    except ImproperlyConfigured:
+        return False
+    return True
 
 
 def _named(value: Any, names: frozenset[str]) -> bool:

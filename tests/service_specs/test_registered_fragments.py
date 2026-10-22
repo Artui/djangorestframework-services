@@ -1,15 +1,17 @@
 """A ``JsonSchemaRegistry`` fragment, split onto the kernel's ``Parameter`` and ``OutputField``.
 
 The keywords a field of the declaration spells set that field; the rest is
-``json_schema_extra``, less what the kernel's tables refuse there; and a
-``format`` outside the kernel's four is dropped.
+``json_schema_extra``; and whatever the kernel refuses to build the
+declaration with is dropped, the kernel's own refusal being the oracle.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.output.output import OutputField
 from django_service_specs.parameters.parameters import Parameter
 from django_service_specs.types.utils import (
@@ -181,12 +183,110 @@ def test_a_fragment_the_kernel_cannot_type_declares_any(fragment: dict[str, Any]
     [
         pytest.param({"type": "string", "minLength": 1}, id="more-than-a-type"),
         pytest.param({"type": "tuple"}, id="no-json-type"),
+        # A type the kernel has and JSON Schema does not: the kernel would take it.
+        pytest.param({"type": "file"}, id="a-kernel-only-type"),
         pytest.param([{"type": "string"}], id="a-tuple-schema"),
     ],
 )
 def test_a_fragment_s_items_saying_more_than_a_type_is_dropped(items: Any) -> None:
     parameter = _parameter({"type": "array", "items": items})
     assert (parameter.type, parameter.items, parameter.json_schema_extra) == ("array", None, None)
+
+
+# -- What the kernel refuses is dropped, and the rest kept -----------------------
+
+_PATTERN = {"pattern": "^[0-9]+$"}
+
+
+@pytest.mark.parametrize(
+    ("output", "fragment", "kept", "dropped"),
+    [
+        pytest.param(
+            False,
+            {"format": "date", **_PATTERN},
+            {"type": "any", "format": None, "json_schema_extra": _PATTERN},
+            {"format": "date"},
+            id="format-without-a-type",
+        ),
+        pytest.param(
+            False,
+            {"type": "string", "minimum": 1, **_PATTERN},
+            {"minimum": None, "json_schema_extra": _PATTERN},
+            {"minimum": 1},
+            id="minimum-on-a-string",
+        ),
+        pytest.param(
+            False,
+            {"type": "string", "minItems": 1, **_PATTERN},
+            {"min_length": None, "json_schema_extra": _PATTERN},
+            {"min_length": 1},
+            id="lengths-on-a-string",
+        ),
+        pytest.param(
+            False,
+            {"type": "string", "items": {"type": "string"}, **_PATTERN},
+            {"items": None, "json_schema_extra": _PATTERN},
+            {"items": "string"},
+            id="items-on-a-string",
+        ),
+        pytest.param(
+            False,
+            {"type": "integer", "minimum": 5, "maximum": 1},
+            {"minimum": 5, "maximum": None},
+            {"minimum": 5, "maximum": 1},
+            id="bounds-crossed",
+        ),
+        pytest.param(
+            False,
+            {"type": "array", "minItems": -1, "maxItems": 3},
+            {"min_length": None, "max_length": 3},
+            {"min_length": -1},
+            id="one-length-refused-beside-a-kept-one",
+        ),
+        pytest.param(
+            False,
+            {"type": "string", "x-scale": Decimal("0.01"), **_PATTERN},
+            {"json_schema_extra": _PATTERN},
+            {"json_schema_extra": {"x-scale": Decimal("0.01")}},
+            id="kept-beside-a-refused-one",
+        ),
+        pytest.param(
+            True,
+            {"format": "date", "title": "Paid on", **_PATTERN},
+            {"type": "any", "format": None, "label": "Paid on", "json_schema_extra": _PATTERN},
+            {"format": "date"},
+            id="output-format-without-a-type",
+        ),
+        pytest.param(
+            True,
+            {"type": "integer", "enum": [1, 2], "x-scale": Decimal("1"), **_PATTERN},
+            {"choices": ((1, "1"), (2, "2")), "json_schema_extra": _PATTERN},
+            {"json_schema_extra": {"x-scale": Decimal("1")}},
+            id="output-kept-beside-a-refused-one",
+        ),
+    ],
+)
+def test_what_the_kernel_refuses_is_dropped_and_the_rest_kept(
+    output: bool, fragment: dict[str, Any], kept: dict[str, Any], dropped: dict[str, Any]
+) -> None:
+    declared = _output_field(fragment) if output else _parameter(fragment)
+    assert {name: getattr(declared, name) for name in kept} == kept
+    # The oracle: what was dropped is what the kernel refuses beside the rest.
+    declaration = OutputField if output else Parameter
+    with pytest.raises(ImproperlyConfigured):
+        declaration("value", declared.type, **dropped)
+
+
+def test_a_bound_the_format_makes_legal_is_kept() -> None:
+    # Each keyword is asked about beside the ones kept before it: ``minimum``
+    # on a string is refused unless the string is a decimal.
+    parameter = _parameter({"type": "string", "format": "decimal", "minimum": 1})
+    assert (parameter.format, parameter.minimum) == ("decimal", 1)
+
+
+def test_a_format_that_is_no_name_is_dropped() -> None:
+    parameter = _parameter({"type": "string", "format": ["date"], **_PATTERN})
+    assert (parameter.format, parameter.json_schema_extra) == (None, _PATTERN)
 
 
 # -- A format outside the kernel's four ------------------------------------------
