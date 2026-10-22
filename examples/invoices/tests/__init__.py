@@ -9,18 +9,22 @@ custom ``@service_action`` decorator) using DRF's APIClient. Run with::
 from __future__ import annotations
 
 from django.contrib.auth.models import AnonymousUser
+from django_service_specs import Grant, dispatch, kernel_spec
+from django_service_specs import InvalidArguments as KernelInvalidArguments
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient, APITestCase
 
 from invoices.models import Invoice
 from invoices.serializers import InvoiceSerializer
-from invoices.views import ANNOTATE_SPEC, InvoiceViewSet
+from invoices.views import ANNOTATE_SPEC, PAYMENT_TERMS_SPEC, InvoiceViewSet
 from rest_framework_services import (
+    DEFAULT_JSON_SCHEMA_REGISTRY,
     FieldAudience,
     FieldMarking,
     QueryParam,
     build_audience_projection,
     dispatch_spec,
+    spec_to_json_schema,
 )
 
 
@@ -164,3 +168,75 @@ class DeclaredInputsTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual((response.data["customer"], response.data["notes"]), ("Acme Ltd", ""))
+
+
+class SpecRegistryTests(APITestCase):
+    """The registry ``PAYMENT_TERMS_SPEC`` declares: one rule, three readers.
+
+    ``NetDaysField`` carries no bounds, so every bound the schema and the
+    compiled spec state comes from the rule and none from the field.
+    """
+
+    client_class = APIClient
+
+    def setUp(self) -> None:
+        self.invoice = Invoice.objects.create(customer="Acme", amount_cents=1)
+
+    def test_the_schema_carries_the_rule_with_no_registry_argument(self) -> None:
+        days = spec_to_json_schema(PAYMENT_TERMS_SPEC)["properties"]["days"]
+        self.assertEqual(days, {"type": "integer", "format": "days", "minimum": 1, "maximum": 90})
+
+        # A registry handed to the helper wins, the empty default included.
+        bare = spec_to_json_schema(PAYMENT_TERMS_SPEC, registry=DEFAULT_JSON_SCHEMA_REGISTRY)
+        self.assertEqual(bare["properties"]["days"], {"type": "integer"})
+
+    def test_the_compiled_spec_keeps_what_the_kernel_can_state_and_drops_the_rest(self) -> None:
+        days = kernel_spec(PAYMENT_TERMS_SPEC).parameters().get("days")
+        self.assertEqual((days.minimum, days.maximum), (1, 90))
+
+        # "days" is none of the kernel's four formats, so it is dropped there
+        # while drfs' own schema keeps it.
+        self.assertIsNone(days.format)
+        schema = spec_to_json_schema(PAYMENT_TERMS_SPEC)
+        self.assertEqual(schema["properties"]["days"]["format"], "days")
+
+    def test_the_kernel_refuses_a_value_outside_the_rule_s_bounds(self) -> None:
+        compiled = kernel_spec(PAYMENT_TERMS_SPEC)
+        principal = AnonymousUser()
+
+        def call(days: int) -> object:
+            return dispatch(
+                compiled,
+                principal=principal,
+                arguments={"pk": self.invoice.pk, "days": days},
+                grant=Grant(compiled, principal),
+            )
+
+        # The kernel's own bound messages: the serializer's ``validate_days``
+        # words its refusal differently, so these came from the rule.
+        for days, message in (
+            (0, "Ensure this value is greater than or equal to 1."),
+            (91, "Ensure this value is less than or equal to 90."),
+        ):
+            with self.assertRaises(KernelInvalidArguments) as refused:
+                call(days)
+            self.assertEqual(refused.exception.detail, {"days": [message]})
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.notes, "")
+
+        call(30)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.notes, "[terms] net 30")
+
+    def test_the_route_answers_the_same_range_from_the_serializer(self) -> None:
+        # Over HTTP the serializer is the validator, so this 400 is
+        # ``validate_days``, not the rule; the rule is what the two tests above
+        # hold for the schema and the compiled spec.
+        url = f"/invoices/{self.invoice.pk}/terms/"
+        response = self.client.post(url, {"days": 0}, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("days", response.data)
+
+        response = self.client.post(url, {"days": 30}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["notes"], "[terms] net 30")

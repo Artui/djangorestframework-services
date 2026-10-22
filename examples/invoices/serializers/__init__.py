@@ -26,3 +26,32 @@ class AnnotateInvoiceInput(serializers.Serializer):
 
     customer = serializers.CharField(max_length=200)
     notes = serializers.CharField(allow_blank=True)
+
+
+MIN_NET_DAYS = 1
+MAX_NET_DAYS = 90
+
+
+class NetDaysField(serializers.IntegerField):
+    """Days an invoice stays open for payment.
+
+    It declares no ``min_value`` or ``max_value``, so nothing in the class tells
+    a schema its range. ``PAYMENT_TERMS_SPEC`` states the range as a rule for
+    this class in its own registry, and that is what the schema, the compiled
+    spec and the checks that run off HTTP read.
+    """
+
+
+class PaymentTermsInput(serializers.Serializer):
+    """Input for ``terms``: how many days the customer has to pay."""
+
+    days = NetDaysField()
+
+    def validate_days(self, value: int) -> int:
+        # The route's own check, in code no schema can read. The registry rule
+        # states the same range for the readers that never run this serializer.
+        if not MIN_NET_DAYS <= value <= MAX_NET_DAYS:
+            raise serializers.ValidationError(
+                f"Payment terms run {MIN_NET_DAYS} to {MAX_NET_DAYS} days."
+            )
+        return value
