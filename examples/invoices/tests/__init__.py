@@ -8,21 +8,42 @@ custom ``@service_action`` decorator) using DRF's APIClient. Run with::
 
 from __future__ import annotations
 
+from typing import Any
+
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
-from django_service_specs import Grant, dispatch, kernel_spec
+from django.core.exceptions import ImproperlyConfigured
+from django.test import RequestFactory
+from django_service_specs import Grant, dispatch, kernel_spec, present
 from django_service_specs import InvalidArguments as KernelInvalidArguments
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import BasePermission
 from rest_framework.test import APIClient, APITestCase
 
 from invoices.models import Invoice
+from invoices.selectors import list_invoices
 from invoices.serializers import InvoiceSerializer
-from invoices.views import ANNOTATE_SPEC, PAYMENT_TERMS_SPEC, InvoiceViewSet
+from invoices.views import (
+    ANNOTATE_SPEC,
+    FIELDS_SPEC,
+    PAYMENT_TERMS_SPEC,
+    RECORD_OPERATION_SPEC,
+    VOID_DRAFTS_SPEC,
+    VOID_DRAFTS_SUMMARY_SPEC,
+    InvoiceViewSet,
+    operation_from_context,
+)
 from rest_framework_services import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     FieldAudience,
     FieldMarking,
+    OfflineServiceView,
     QueryParam,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
     build_audience_projection,
+    build_offline_context,
     dispatch_spec,
     spec_to_json_schema,
 )
@@ -240,3 +261,168 @@ class SpecRegistryTests(APITestCase):
         response = self.client.post(url, {"days": 30}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["notes"], "[terms] net 30")
+
+
+class CallContextTests(APITestCase):
+    """The dict a call carries, handed to ``dispatch_spec`` from off HTTP."""
+
+    def setUp(self) -> None:
+        self.invoice = Invoice.objects.create(customer="Acme", amount_cents=1)
+
+    def test_a_provider_naming_call_context_reads_the_dict_the_caller_passed(self) -> None:
+        seen: dict[str, Any] = {}
+        user = AnonymousUser()
+        context = build_offline_context(user, {})
+        # A view with a name for the operation: with none, ``action`` is ``None``.
+        view = OfflineServiceView(request=context.request, action="reconcile")
+        call_context: dict[str, Any] = {"trace_id": "t-1"}
+
+        def spy(*, call_context: dict[str, Any]) -> dict[str, str]:
+            seen["context"] = call_context
+            return operation_from_context(call_context=call_context)
+
+        spec = ServiceSpec(
+            service=RECORD_OPERATION_SPEC.service,
+            kwargs=spy,
+            output_selector_spec=RECORD_OPERATION_SPEC.output_selector_spec,
+        )
+        dispatch_spec(
+            spec,
+            user=user,
+            instance=self.invoice,
+            params={},
+            request=context.request,
+            view=view,
+            call_context=call_context,
+        )
+
+        # The provider was handed the caller's dict itself, not a copy ...
+        self.assertIs(seen["context"], call_context)
+        # ... which the edge filled with the four standard entries and left the
+        # caller's own entry in.
+        self.assertIs(call_context["request"], context.request)
+        self.assertIs(call_context["view"], view)
+        self.assertIsNone(call_context["format"])
+        self.assertEqual(call_context["action"], "reconcile")
+        self.assertEqual(call_context["trace_id"], "t-1")
+        # What the provider read from it is what the service wrote.
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.notes, "[operation] reconcile")
+
+    def test_with_no_view_the_action_is_none(self) -> None:
+        # No view, so the edge's ``action`` entry is ``None`` and the provider says so.
+        dispatch_spec(RECORD_OPERATION_SPEC, user=AnonymousUser(), instance=self.invoice, params={})
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.notes, "[operation] unnamed")
+
+
+class ShapingQueryParamTests(APITestCase):
+    """``QueryParam("fields")`` that no callable names shapes the output, not the run."""
+
+    def setUp(self) -> None:
+        Invoice.objects.create(customer="Acme", amount_cents=4200)
+        self.compiled = kernel_spec(FIELDS_SPEC)
+
+    def test_the_compiled_spec_holds_it_as_a_shape_and_not_a_read(self) -> None:
+        # ``list_invoices`` takes ``status`` and nothing else, so ``status``
+        # runs the selector and ``fields`` only shapes what is presented.
+        self.assertEqual([param.name for param in self.compiled.shapes], ["fields"])
+        self.assertEqual([param.name for param in self.compiled.reads], ["status"])
+        # Both are still arguments a caller may send.
+        self.assertEqual(set(self.compiled.parameters().names()), {"status", "fields"})
+
+    def test_the_shape_reaches_the_serializer_off_http(self) -> None:
+        principal = AnonymousUser()
+
+        shaped = dispatch(self.compiled, principal=principal, arguments={"fields": "customer"})
+        self.assertEqual(present(self.compiled, shaped), [{"customer": "Acme"}])
+
+        # Without it the same call answers every field: the serializer, not the
+        # spec, drops them.
+        whole = dispatch(self.compiled, principal=principal, arguments={})
+        (row,) = present(self.compiled, whole)
+        self.assertEqual(set(row), set(InvoiceSerializer.Meta.fields))
+
+
+class ReturnsManyTests(APITestCase):
+    """A service whose list output re-reads nothing: its return is the rows."""
+
+    def setUp(self) -> None:
+        self.draft = Invoice.objects.create(customer="Acme", amount_cents=1)
+        Invoice.objects.create(customer="Paid", amount_cents=2, status=Invoice.STATUS_PAID)
+
+    def test_the_compiled_spec_returns_many(self) -> None:
+        compiled = kernel_spec(VOID_DRAFTS_SPEC)
+        self.assertTrue(compiled.returns_many)
+        # The service is the only source of rows: nothing is read again.
+        self.assertIsNone(compiled.output_selector_spec)
+
+    def test_the_kernel_answers_and_presents_a_list(self) -> None:
+        compiled = kernel_spec(VOID_DRAFTS_SPEC)
+
+        result = dispatch(compiled, principal=AnonymousUser(), arguments={})
+
+        self.assertEqual(result.kind, "list")
+        rows = present(compiled, result)
+        self.assertEqual([(row["customer"], row["status"]) for row in rows], [("Acme", "void")])
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, Invoice.STATUS_VOID)
+
+    def test_the_edge_refuses_a_mapping_where_rows_are_declared(self) -> None:
+        with self.assertRaisesMessage(ImproperlyConfigured, "declares kind=LIST with no selector"):
+            dispatch_spec(VOID_DRAFTS_SUMMARY_SPEC, user=AnonymousUser(), params={})
+
+        # The author's error, raised after the write: the drafts are voided.
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, Invoice.STATUS_VOID)
+
+
+class _Asked(BasePermission):
+    """Records the request and view each permission question was asked against."""
+
+    asked: list[tuple[Any, Any]] = []
+
+    def has_permission(self, request: Any, view: Any) -> bool:
+        self.asked.append((request, view))
+        return True
+
+
+class CarriedRequestTests(APITestCase):
+    """The request a run arrived on, carried in the call's context."""
+
+    def setUp(self) -> None:
+        _Asked.asked.clear()
+        users = get_user_model().objects
+        self.principal = users.create_user("ada")
+        self.arrived_user = users.create_user("bob")
+        self.spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_invoices,
+            output_serializer=InvoiceSerializer,
+            permission_classes=[_Asked],
+            reads=[QueryParam("status")],
+        )
+
+    def test_a_permission_class_sees_the_principal_and_the_call_s_query_params(self) -> None:
+        # The run arrived on another endpoint, as another user, with its own
+        # query string and headers.
+        arrived = RequestFactory().get("/chat/", {"status": "paid"}, HTTP_X_CLIENT="chat")
+        arrived.user = self.arrived_user
+
+        dispatch(
+            kernel_spec(self.spec),
+            principal=self.principal,
+            arguments={"status": "sent"},
+            call_context={"request": arrived},
+        )
+
+        ((request, view),) = _Asked.asked
+        # Carried: the check was handed this request's headers ...
+        self.assertEqual(request.META["HTTP_X_CLIENT"], "chat")
+        # ... but under the principal and the operation's own query string.
+        self.assertEqual(request.user, self.principal)
+        self.assertEqual(dict(request.query_params.lists()), {"status": ["sent"]})
+        self.assertIs(view.request, request)
+        # It read a copy: the request the run arrived on is untouched.
+        self.assertEqual(arrived.user, self.arrived_user)
+        self.assertEqual(dict(arrived.GET.lists()), {"status": ["paid"]})

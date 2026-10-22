@@ -57,3 +57,20 @@ class PaymentTermsInput(serializers.Serializer):
                 f"Payment terms run {MIN_NET_DAYS} to {MAX_NET_DAYS} days."
             )
         return value
+
+
+class InvoiceFieldsSerializer(InvoiceSerializer):
+    """``InvoiceSerializer`` that keeps the fields a caller's ``?fields=`` names.
+
+    It reads the request the serializer context holds. Off HTTP the kernel's
+    presenter builds an offline one whose query string is the call's shaping
+    arguments, which is what ``FIELDS_SPEC`` is run with.
+    """
+
+    def to_representation(self, instance: Invoice) -> dict[str, object]:
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        wanted = request.query_params.get("fields") if request is not None else None
+        if not wanted:
+            return data
+        return {name: data[name] for name in wanted.split(",") if name in data}
