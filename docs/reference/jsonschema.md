@@ -506,6 +506,11 @@ HTTP as a built-in field's would be: `type`, `format`, `enum`, a bare `items`,
 and on an input the bounds (`minimum`, `maximum`, `minItems`, `maxItems`) and
 `description`, on an output `title`. Every other keyword, `pattern` above
 among them, is advertised in the compiled schema and not enforced there.
+Over HTTP DRF's serializer validates alone, so there a registered bound is a
+description and nothing more: a field whose rule states a range it does not
+check itself accepts a value outside it on the view and is refused off HTTP.
+Make the field, or the serializer, check what its rule states, and every route
+answers the same.
 
 **What the kernel cannot state is dropped from the compiled spec, never
 refused.** A `format` outside the kernel's four (`decimal`, `date-time`, `date`,
