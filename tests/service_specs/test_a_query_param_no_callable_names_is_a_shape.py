@@ -7,7 +7,7 @@ on ``PresentationContext.shapes`` and to no callable. One that a callable of
 the call does name stays a read, so the callable is still handed it: the
 service or selector, a precondition, a target lookup, a ``**kwargs`` taker, a
 ``kwargs`` or ``input_data`` provider reading it by name or annotated to fill
-it, and a ``filter_set`` field. A nested spec's own ``QueryParam`` stays a read,
+or decline it, and a ``filter_set`` field. A nested spec's own ``QueryParam`` stays a read,
 since the kernel refuses ``shapes`` there.
 """
 
@@ -24,6 +24,7 @@ from django_service_specs.parameters.parameters import Parameter
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
+from django_service_specs.types.unset import UNSET, UnsetType
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny, BasePermission
 from typing_extensions import TypedDict, Unpack
@@ -61,6 +62,10 @@ class _Shaping(TypedDict, total=False):
 
 class _Fills(TypedDict):
     fields: str
+
+
+class _Declines(TypedDict):
+    fields: str | UnsetType
 
 
 def _made() -> dict[str, str]:
@@ -251,6 +256,10 @@ def _provider_filling() -> _Fills:
     return {"fields": "server"}
 
 
+def _provider_declines() -> _Declines:
+    return {"fields": UNSET}
+
+
 def _input_naming(*, fields: str = "all") -> dict[str, Any]:
     return {}
 
@@ -288,6 +297,9 @@ def _instance_lookup(selector: Callable[..., Any] = _lookup_naming, **fields: An
         pytest.param(_service(kwargs=_provider_filling), id="service-provider-fills"),
         pytest.param(_selector(kwargs=_provider_naming), id="selector-provider"),
         pytest.param(_selector(kwargs=_provider_filling), id="selector-provider-fills"),
+        # A key a provider may decline is still one it names: the declinable half
+        # of its keys is what holds this case (it compiles to a shape without it).
+        pytest.param(_selector(kwargs=_provider_declines), id="selector-provider-declines"),
         pytest.param(
             _service(
                 service=lambda *, instance: None,
