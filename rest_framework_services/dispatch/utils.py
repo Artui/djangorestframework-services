@@ -242,6 +242,10 @@ def prepare_edge_call(
             view_layers=hooks.input_serializer_context,
             provider=provider,
             describing=not whole_pool,
+            # The call's own dict, so a provider defaulting ``call_context`` is
+            # not answered ``None`` here and the dict at validation
+            # (test_a_provider_naming_the_call_context_with_a_default_is_asked_once_with_the_dict).
+            call_context=context,
         )
 
     state.describe_context = describe_context

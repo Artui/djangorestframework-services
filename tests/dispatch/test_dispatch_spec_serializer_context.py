@@ -297,3 +297,27 @@ def test_a_callers_seed_named_like_the_edges_layer_key_shadows_nothing() -> None
     )
 
     assert seen[0]["hook_in"] == "in"
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_with_a_default_is_asked_once_with_the_dict() -> None:
+    """The edge's description of the input serializer and the kernel's validation ask
+    one provider under one call: both hand it the call's own dict, so a provider
+    defaulting ``call_context`` is not answered a second time with ``None``."""
+    seen: list[dict[str, Any]] = []
+    asked: list[Any] = []
+    call_context: dict[str, Any] = {"tenant": "acme"}
+
+    def provider(call_context: Any = None) -> dict[str, Any]:
+        asked.append(call_context)
+        return {"spec_in": "spec"}
+
+    dispatch_spec(
+        _spec(seen, input_context=provider),
+        user=None,
+        params={"title": "hi"},
+        call_context=call_context,
+    )
+
+    assert len(asked) == 1
+    assert asked[0] is call_context
