@@ -356,7 +356,8 @@ class TestReflectedReads:
         reads = _kernel_selector(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=read)).reads
 
         assert tuple(reads) == (
-            Parameter("pk", "integer"),
+            # No default, so only an argument fills it.
+            Parameter("pk", "integer", required=True),
             Parameter("status", "string", nullable=True, choices=("open", "closed"), default=None),
             Parameter("colour", "string", choices=("red", "blue"), default=_Colour.RED),
             Parameter("when", "string", format="date-time", nullable=True, default=None),

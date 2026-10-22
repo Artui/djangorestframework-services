@@ -290,7 +290,7 @@ through the second. Each builds the context in the same four layers:
 
 | Layer | Through `dispatch_spec` | The compiled spec, dispatched by the kernel |
 |---|---|---|
-| 1. DRF default | the `view`'s `get_serializer_context()` | the same for a registered `view` seed, else DRF's three keys, from the registered `request` or an offline pair built for the principal |
+| 1. DRF default | the `view`'s `get_serializer_context()` | the same for a registered `view` seed or the call context's `view`, else DRF's three keys, from the registered `request`, the call context's `request` (a Django `HttpRequest` wrapped as a DRF `Request`), or an offline pair built for the principal |
 | 2. and 3. View hooks | what the view resolved into `view_hooks=`, carried beside the call rather than in its pool, so no callable's `**kwargs` receives them | none |
 | 4. Per-spec callable | `*_serializer_context` on the spec | the same, with the final say |
 
@@ -298,6 +298,9 @@ The callable declares what it reads, as every spec callable does:
 
 - `request`, `view` and `user` (the principal), the call's own, which no
   argument a client sends can stand in for;
+- `call_context`, the one dict the call carries from the transport to every
+  stage, holding `request`, `view`, `format` and `action`
+  (see [Dispatch](../reference/dispatch.md));
 - any pool seed the call registered;
 - on input, an argument by name, beneath everything above;
 - on output, the value being rendered: `result` for a service's output,
