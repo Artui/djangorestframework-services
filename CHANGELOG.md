@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Read a shaping `QueryParam` from `kernel_spec(spec).shapes`, not
+  `.reads`.** A declared `QueryParam` that no callable of the call takes by
+  name now compiles to the kernel's `shapes`. A transport or schema builder
+  that walked `.reads` to find a spec's query arguments stops finding it there;
+  `kernel_spec(spec).parameters()` lists both groups.
+- **Rename a `pool_seeds` entry called `call_context`.** The kernel reserves
+  the name from 0.14.0.
+
+### Added
+
+- **The call's context.** `dispatch_spec` and `adispatch_spec` take
+  `call_context=`, the kernel's call context. It is one dict the caller owns,
+  handed as the same object to the kernel's `dispatch` or `adispatch` and its
+  target lookup, and to the spec's `kwargs` provider and `input_data`, which the
+  edge calls itself. With none, each call gets a fresh dict. The edge fills four
+  standard entries only where the dict has none, so a caller's own entries win:
+  `request` and `view` as passed, `format` as `None`, and `action`, the view's
+  non-empty `action` or else `None`.
+- **A `kwargs` provider, `input_data`, `input_serializer_context` or
+  `output_serializer_context` that names `call_context` is answered on drfs' own
+  route,** as it already was on the kernel's. Each serializer still has its own
+  copy of its context; a provider copies what it needs from the call's.
+- **`render_spec_output`, `arender_spec_output`, `render_for_audience` and
+  `arender_for_audience` take `call_context=`,** handed to an output context
+  provider naming it. A transport renders after the dispatch returns, so it
+  passes the dict it dispatched with.
+- **`enforce_affordances`, `aenforce_affordances`, `unmet_operation_affordance`
+  and `aunmet_operation_affordance` take `call_context=`** and pass it to the
+  kernel's.
+- **`DRFPermissionCheck` and the serializer context read the request and view a
+  call carries.** A call's seeds come first, then the `request` and `view`
+  entries of its `call_context`, where a transport running the kernel's
+  `dispatch` puts the request a run arrived on or a view built for the
+  operation. `None` in either place counts as no value. A carried Django
+  `HttpRequest` is wrapped as a DRF `Request` around a copy of it, as
+  `build_offline_context(http_request=)` wraps one: its `user` is the principal,
+  and its query string is the call's read-shaping arguments, replacing the
+  arrived-on endpoint's own. A carried DRF `Request` and a carried view are used
+  as they are. Only when neither is carried is an offline request and view built
+  for the principal. Where the permission check is handed one and not the other,
+  the other half is the offline pair's, so a DRF permission class is never
+  handed `None`.
+- **An offline view's `action` is the call context's `action`,** where that is a
+  non-empty string, so a permission class or serializer branching on
+  `view.action` reads the operation's name off HTTP rather than `None`. A view
+  the call carries keeps its own.
+- **A spec's read-shaping arguments reach the serializer off HTTP.** When the
+  presenter builds an offline request, its query string is the call's shapes,
+  so a serializer reading `fields` off `request.query_params` finds what the
+  caller sent. A DRF `Request` the call carries is left as it is.
+- **`SerializerPresenter(shaped=True)`** declares no output field
+  `always_present`, at any depth. A spec whose output a caller's argument shapes
+  compiles with it, because a `QueryParam` declares no choices, so no key is
+  present under every value a caller may send. The default is unchanged.
+
+### Changed
+
+- **Requires django-service-specs 0.14.0.** Its reserved pool names gain
+  `call_context`, which a `pool_seeds` entry may no longer take.
+- **A declared `QueryParam` that no callable of the call takes by name compiles
+  to the kernel's `shapes` rather than its `reads`.** It is still checked as an
+  argument and still read off the query string by a permission class, and it
+  reaches the presenter on `PresentationContext.shapes`. The callables that
+  count are the service or selector, their preconditions, a target lookup, the
+  `kwargs` and `input_data` providers (by name, or a typed one filling the key),
+  any callable taking a bare `**kwargs`, and a `filter_set`'s fields. A nested
+  spec's `QueryParam` stays a read. Code reading `kernel_spec(spec).reads` no
+  longer finds such a `QueryParam` there; `kernel_spec(spec).parameters()`
+  still has it.
+- **A service spec whose output selector is a `LIST` with no `selector`, and
+  which is not `many`, compiles to the kernel's `returns_many=True`.** The
+  kernel's own `dispatch` answers it as a list, and its output schema is an
+  array of the row. drfs' edge checks such a return by the declaration, not by
+  the kind the kernel reports, so a mapping, `str`, `bytes`, a non-iterable or
+  `None` is refused with `ImproperlyConfigured` however the spec is compiled.
+
 ## [0.58.0] — 2026-10-16
 
 ### Upgrade notes
