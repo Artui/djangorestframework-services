@@ -26,6 +26,7 @@ def render_for_audience(
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
     view_hooks: ViewHooks | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> Any:
     """[`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output]
     plus the agent projection.
@@ -62,6 +63,7 @@ def render_for_audience(
         request=request,
         extras=extras,
         view_hooks=view_hooks,
+        call_context=call_context,
     )
     if projection is None:
         projection = audience_projection_for_spec(spec)

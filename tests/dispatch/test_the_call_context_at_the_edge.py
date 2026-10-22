@@ -24,7 +24,10 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceSpec,
     adispatch_spec,
+    arender_for_audience,
+    arender_spec_output,
     dispatch_spec,
+    render_for_audience,
     render_spec_output,
 )
 from rest_framework_services.dispatch.utils import resolve_output_context
@@ -301,3 +304,28 @@ def test_the_output_context_provider_has_a_dict_with_none_passed() -> None:
 
     assert payload == {"id": post.pk, "title": "a"}
     assert seen["provider"] == {}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "render",
+    [
+        render_spec_output,
+        async_to_sync(arender_spec_output),
+        render_for_audience,
+        async_to_sync(arender_for_audience),
+    ],
+    ids=["render", "arender", "render_for_audience", "arender_for_audience"],
+)
+def test_each_render_hands_the_output_context_provider_the_dict_passed(
+    render: Callable[..., Any],
+) -> None:
+    """A transport renders after the dispatch returns, so the dict it dispatched with
+    reaches the output context provider only through the render's own keyword."""
+    seen: dict[str, Any] = {}
+    context: dict[str, Any] = {"tenant": "acme"}
+    post = Post.objects.create(title="a")
+
+    render(_rendered_with_provider(seen), post, call_context=context)
+
+    assert seen["provider"] is context

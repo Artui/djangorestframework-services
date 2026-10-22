@@ -24,6 +24,7 @@ def render_spec_output(
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
     view_hooks: ViewHooks | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> Any:
     """Render ``value`` to a JSON-shaped payload using ``spec``'s output serializer.
 
@@ -50,7 +51,10 @@ def render_spec_output(
     and behind a DRF view. The spec's ``output_serializer_context`` provider, if any, is
     resolved with ``view`` / ``request`` plus the resolved-data ``extras`` it declares
     (``page`` for a list, ``instance`` for a retrieve, ``result`` for a mutation) and
-    merged over that baseline.
+    merged over that baseline. A provider naming ``call_context`` is handed the
+    ``call_context`` passed here, the same object, so a transport rendering after
+    ``dispatch_spec`` returns passes the dict it dispatched with; with none, the
+    provider has a fresh dict for this render alone.
 
     Pagination is the caller's job — pass the already-sliced page as ``value``
     (and the same page object under the matching ``extras`` key) so an
@@ -92,7 +96,12 @@ def render_spec_output(
         # value would be re-queried on the second walk.
         value = list(value)
     context = resolve_output_context(
-        spec, view=view, request=request, extras=extras or {}, view_hooks=view_hooks
+        spec,
+        view=view,
+        request=request,
+        extras=extras or {},
+        view_hooks=view_hooks,
+        call_context=call_context,
     )
     payload: Any = serializer_cls(value, many=many, context=context).data
     if affordances is None:
