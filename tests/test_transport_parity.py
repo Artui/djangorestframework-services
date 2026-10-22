@@ -24,7 +24,10 @@ import inspect
 from typing import Any
 
 import pytest
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser, User
+from django_service_specs.dispatch.dispatch import dispatch as kernel_dispatch
+from django_service_specs.dispatch.grant import Grant
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -726,3 +729,63 @@ async def test_a_refusal_takes_the_wire_name_on_the_async_path() -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
         await adispatch_spec(_ALIAS_SPEC, user=None, params={"headline": "t"})
     assert excinfo.value.detail == {"headline": ["Too long."]}
+
+
+# --- a callable naming the call's context ---------------------------------
+#
+# The kernel hands every stage naming ``call_context`` the call's dict. drfs'
+# edge calls the spec's ``kwargs`` provider itself, so the edge has to offer the
+# same name, or a spec written for the kernel's route raises ``TypeError`` here.
+
+
+def _context_provider(*, call_context: dict[str, Any]) -> dict[str, Any]:
+    return {"tenant": f"entries:{','.join(sorted(call_context))}"}
+
+
+def _with_tenant(*, data: Any, tenant: str) -> dict[str, Any]:
+    return {**data, "tenant": tenant}
+
+
+_CONTEXT_SPEC = ServiceSpec(
+    service=_with_tenant, input_serializer=_TitleOnlyInput, kwargs=_context_provider, atomic=False
+)
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_on_the_kernel_s_route() -> None:
+    principal = AnonymousUser()
+    compiled = kernel_spec(_CONTEXT_SPEC)
+    result = kernel_dispatch(
+        compiled,
+        principal=principal,
+        arguments={"title": "t"},
+        grant=Grant(compiled, principal),
+        call_context={"request": None, "view": None, "format": None, "action": None},
+    )
+    assert result.value == {"title": "t", "tenant": "entries:action,format,request,view"}
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_off_http() -> None:
+    result = dispatch_spec(_CONTEXT_SPEC, user=None, params={"title": "t"})
+    assert result.value == {"title": "t", "tenant": "entries:action,format,request,view"}
+
+
+@pytest.mark.django_db
+def test_a_provider_naming_the_call_context_answers_over_http() -> None:
+    seen: dict[str, Any] = {}
+
+    def provider(*, call_context: dict[str, Any]) -> dict[str, Any]:
+        seen.update(call_context)
+        return _context_provider(call_context=call_context)
+
+    spec = ServiceSpec(service=_with_tenant, input_serializer=_TitleOnlyInput, kwargs=provider)
+    response = _create_view(spec)(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
+    assert response.data == {"title": "t", "tenant": "entries:action,format,request,view"}
+    # A view's call is the request's: the live request and view, the view's
+    # action, and no format.
+    assert seen["request"].method == "POST"
+    assert seen["view"].action == "create"
+    assert seen["action"] == "create"
+    assert seen["format"] is None

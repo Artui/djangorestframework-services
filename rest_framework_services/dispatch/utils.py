@@ -179,6 +179,7 @@ def prepare_edge_call(
     filter_data: Mapping[str, Any] | None,
     many_as_argument: bool,
     partial: bool | None,
+    call_context: dict[str, Any] | None,
     state: EdgeCallState,
 ) -> EdgeCall | DispatchResult:
     """Everything ``dispatch_spec`` does before the kernel's ``dispatch``, as one sync step.
@@ -194,6 +195,20 @@ def prepare_edge_call(
         raise TypeError(
             f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
         )
+    # The call's context: the caller's dict itself, tested ``is None`` rather
+    # than for truth, so an empty one passed is still theirs
+    # (test_an_empty_dict_passed_is_the_one_every_stage_is_handed). The four
+    # standard entries are set where the caller put none, so the caller's win
+    # (test_a_caller_s_own_entries_win), and each one's ``setdefault`` is held by
+    # test_the_edge_fills_the_standard_entries_for_a_kwargs_provider. ``format``
+    # is ``None``: the edge is handed none, as ``base_serializer_context`` says.
+    # ``action`` is the operation's name where the view handed in carries one,
+    # an empty one being none (test_the_action_is_the_view_s_where_it_has_one).
+    context: dict[str, Any] = {} if call_context is None else call_context
+    context.setdefault("request", request)
+    context.setdefault("view", view)
+    context.setdefault("format", None)
+    context.setdefault("action", getattr(view, "action", None) or None)
     hooks = view_hooks if view_hooks is not None else ViewHooks()
     state.view_hooks = hooks
     # What a service spec's output re-read is filtered by, read when it runs,
@@ -236,6 +251,9 @@ def prepare_edge_call(
         "progress": (
             progress if hooks.progress is None else combine_progress(progress, hooks.progress)
         ),
+        # The caller's dict itself, so a stage the kernel runs writes where the
+        # caller reads (test_an_empty_dict_passed_is_the_one_every_stage_is_handed).
+        "call_context": context,
     }
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
@@ -289,7 +307,14 @@ def prepare_edge_call(
         _route_filter_data(arguments, variant.filter_set, filter_data)
         _as_its_filter_set_reads(arguments, variant.filter_set)
         author_rest, _authored, authors_beside = _route_author_values(
-            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+            spec,
+            variant,
+            arguments,
+            hooks,
+            seeds=seeds,
+            view=view,
+            request=request,
+            call_context=context,
         )
         state.beside_filter = (spec, {**beside, **authors_beside})
         return EdgeCall(
@@ -365,7 +390,9 @@ def prepare_edge_call(
         # (test_a_row_that_is_no_object_beside_an_input_data_provider_is_refused).
         # ``server`` is ``{}`` with no provider, so its own operand changes
         # nothing a caller sees and no test can hold it: it skips the copy.
-        server = server_input(spec, hooks, view=view, request=request, instance=None)
+        server = server_input(
+            spec, hooks, view=view, request=request, instance=None, call_context=context
+        )
         if server and sent_rows is not None:
             arguments[spec.many_argument] = [
                 {**row, **server} if isinstance(row, Mapping) else row
@@ -400,7 +427,14 @@ def prepare_edge_call(
             # (test_over_a_live_view_a_row_the_kernel_refused_is_not_read_again).
             state.body_rows = over_http(view) and not many_as_argument
         extra_kwargs = _route_author_values(
-            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+            spec,
+            variant,
+            arguments,
+            hooks,
+            seeds=seeds,
+            view=view,
+            request=request,
+            call_context=context,
         )[0]
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
@@ -519,7 +553,14 @@ def prepare_edge_call(
         _as_its_filter_set_reads(arguments, target_spec.filter_set)
     # Before the lookup, which an author's value for one of its reads scopes.
     extra_kwargs, authored, _beside = _route_author_values(
-        spec, service, arguments, hooks, seeds=seeds, view=view, request=request
+        spec,
+        service,
+        arguments,
+        hooks,
+        seeds=seeds,
+        view=view,
+        request=request,
+        call_context=context,
     )
     if state.beside_filter is not None:
         # An author's value scopes the lookup (the stated ``pk`` rule), so its
@@ -568,6 +609,9 @@ def prepare_edge_call(
             arguments=arguments,
             grant=Grant(service, principal),
             pool_seeds=seeds,
+            # The dict the call goes on with, so the lookup and the service read
+            # one context (test_a_target_lookup_and_the_service_share_the_dict).
+            call_context=context,
         )
         if isinstance(resolved, DispatchResult):
             return resolved
@@ -581,7 +625,9 @@ def prepare_edge_call(
     # (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words, its
     # ``with-an-input-data-provider`` cases). ``server`` is ``{}`` with no
     # provider, so its own operand changes nothing a caller sees.
-    server = server_input(spec, hooks, view=view, request=request, instance=target)
+    server = server_input(
+        spec, hooks, view=view, request=request, instance=target, call_context=context
+    )
     if server and isinstance(arguments, dict):
         arguments.update(server)
     # One arc to coverage, so each conjunct is named: a spec with no input
@@ -810,6 +856,7 @@ def server_input(
     view: Any,
     request: Any,
     instance: Any,
+    call_context: dict[str, Any],
 ) -> dict[str, Any]:
     """The server's keys for the Validator's input: the view's ``input_data``, then the spec's.
 
@@ -828,7 +875,13 @@ def server_input(
     merged: dict[str, Any] = dict(hooks.input_data or {})
     provider = spec.input_data
     if provider is not None:
-        pool: dict[str, Any] = {"view": view, "request": request, "instance": instance}
+        pool: dict[str, Any] = {
+            "view": view,
+            "request": request,
+            "instance": instance,
+            # test_the_edge_fills_the_standard_entries_for_input_data fails without it.
+            "call_context": call_context,
+        }
         answered = provider(**resolve_callable_kwargs(provider, pool))
         merged.update({key: value for key, value in answered.items() if value is not UNSET})
     return merged
@@ -841,10 +894,14 @@ def listed_output(
 
     ``output_selector_spec=SelectorSpec(kind=LIST)`` with no ``selector``
     compiles to no output selector, so the kernel presents the service's own
-    return and reports it as one value. The declaration says that return is the
-    set of rows, so the edge reports ``kind="list"`` for it and the transport
-    presents it per row, once ``service_return_as_list`` has found it is one.
-    A not-found result, and every other spec, comes back as it was. A ``many``
+    return. The declaration says that return is the set of rows, so the edge
+    reports ``kind="list"`` for it and the transport presents it per row, once
+    ``service_return_as_list`` has found it is one. That is decided by the
+    declaration, never by the kind the kernel answered: a compile that has the
+    kernel answer ``"list"`` itself must still meet the refusal, or a mapping
+    or a string would be presented row by row. A not-found result, a ``LIST``
+    output that re-reads (what its selector answers is no return of the
+    service's), and every other spec, come back as they were. A ``many``
     spec's return is already its rows, so it is reported ``"list"`` whatever it
     is, and one that is not - a ``None`` - is presented as drfs always
     presented it rather than refused
@@ -858,11 +915,17 @@ def listed_output(
     output = spec.output_selector_spec
     # One arc to coverage, so each condition is named by the test that fails
     # without it: test_a_retrieve_declaration_with_no_re_read_is_still_one_value
-    # (the declared kind) and
-    # test_a_missing_row_under_a_list_declaration_stays_not_found (the result's).
-    # A ``LIST`` output that re-reads needs no condition of its own: the kernel
-    # already answers it ``"list"``, so the second condition returns it as is.
-    if output is None or output.kind is not SelectorKind.LIST or result.kind != "instance":
+    # (the declared kind), test_a_list_output_that_re_reads_is_the_output_selector_s
+    # (the re-read) and test_a_missing_row_under_a_list_declaration_stays_not_found
+    # (the missing row). No condition reads ``"instance"``: deciding by the
+    # result's kind fails the ``kernel-answers-list`` cases of
+    # test_a_return_that_is_not_a_set_of_rows_is_the_authors_error.
+    if (
+        output is None
+        or output.kind is not SelectorKind.LIST
+        or output.selector is not None
+        or result.kind == "not_found"
+    ):
         return result
     return dataclasses.replace(
         result, kind="list", value=service_return_as_list(spec, result.value)
@@ -1177,6 +1240,7 @@ def _route_author_values(
     seeds: PoolSeeds,
     view: Any,
     request: Any,
+    call_context: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
     """The author's values for the call: the view's hook extras, then the spec's ``kwargs`` provider.
 
@@ -1243,7 +1307,10 @@ def _route_author_values(
             arguments.pop(name, None)
     provided: dict[str, Any] = {}
     if provider is not None:
-        answered = provider(**resolve_callable_kwargs(provider, {"view": view, "request": request}))
+        # The call's context beside the two seeds, as the kernel's route offers
+        # it (test_the_edge_fills_the_standard_entries_for_a_kwargs_provider).
+        pool = {"view": view, "request": request, "call_context": call_context}
+        answered = provider(**resolve_callable_kwargs(provider, pool))
         taken = sorted(answered.keys() & seeded)
         if taken:
             label = f"{type(spec).__name__}.kwargs"
@@ -2501,6 +2568,7 @@ def resolve_output_context(
     request: Any,
     extras: Mapping[str, Any],
     view_hooks: ViewHooks | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve the output serializer context for either spec kind.
 
@@ -2513,13 +2581,25 @@ def resolve_output_context(
     (``result`` / ``instance`` / ``page``). The ``view_hooks`` layer is lazy,
     resolved with the value being rendered, so a provider can batch one query
     against exactly that value.
+
+    ``call_context`` is the call's context, handed to a provider naming it as the
+    same object, and to one taking ``**kwargs`` only where it names it, as the
+    kernel binds it; ``None`` is a fresh dict for this render alone.
     """
     context: dict[str, Any] = base_serializer_context(view=view, request=request)
     if view_hooks is not None and view_hooks.output_serializer_context is not None:
         context.update(view_hooks.output_serializer_context(extras.get("result")))
     provider = _output_context_provider(spec)
     if provider is not None:
-        pool: dict[str, Any] = {"view": view, "request": request, **extras}
+        pool: dict[str, Any] = {
+            "view": view,
+            "request": request,
+            **extras,
+            # test_the_output_context_provider_is_handed_the_dict_passed fails
+            # without it, and test_the_output_context_provider_has_a_dict_with_none_passed
+            # without the fresh one.
+            "call_context": {} if call_context is None else call_context,
+        }
         context.update(provider(**resolve_callable_kwargs(provider, pool)))
     return context
 
