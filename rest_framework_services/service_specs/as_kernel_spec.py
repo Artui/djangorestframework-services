@@ -26,6 +26,7 @@ from django_service_specs.specs.service_spec import ServiceSpec as KernelService
 from django_service_specs.types.is_async import is_async
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from typing_extensions import TypedDict
 
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
@@ -53,7 +54,7 @@ from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEED
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
-from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.unset import UNSET, UnsetType
 from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.utils import callable_type_hints
 
@@ -786,11 +787,51 @@ def _answering_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) 
         }
 
     cast(Any, channelled).__signature__ = inspect.signature(provider)
-    channelled.__annotations__ = dict(getattr(provider, "__annotations__", {}))
+    channelled.__annotations__ = _answered_on_the_server_s_channel(provider, shadowed)
     channelled.__name__ = getattr(provider, "__name__", "kwargs")
     channelled.__qualname__ = getattr(provider, "__qualname__", channelled.__name__)
     channelled.__module__ = provider.__module__
     return channelled
+
+
+def _answered_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) -> dict[str, Any]:
+    """``provider``'s annotations, its return declaring each ``shadowed`` key on its server channel.
+
+    The kernel reads which names a typed provider fills off its return
+    annotation (``provider_keys``), and takes a caller's value for such a name
+    as no argument. A ``shadowed`` key is answered on its server channel and
+    fills no argument of its name, which is the filter's and the caller's, so
+    the return declares the keys as they are answered rather than as the
+    provider names them, and each other key stays filled or declinable as the
+    provider declares it
+    (test_through_the_kernel_a_typed_provider_s_value_reaches_the_parameter_and_not_the_filter:
+    without the renaming both its cases fail, its ``reach`` fails with a
+    declinable key read as filled, and with the provider's own return its
+    ``evaluated`` case fails and its ``postponed`` case reads the provider as
+    untyped and asks the caller for ``scope``, as
+    test_a_target_lookup_s_typed_provider_s_value_reaches_the_parameter_and_not_the_filter
+    does for a lookup's provider). Read here, off the provider itself, because a postponed return annotation
+    names a type in the provider's module, which this wrapper's globals cannot
+    resolve.
+    """
+    annotations = dict(getattr(provider, "__annotations__", {}))
+    keys = provider_keys(provider)
+    # A provider whose return says nothing about its keys stays one that does
+    # not say (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter
+    # fails without the check, its provider a lambda).
+    if keys is not None:
+
+        def answered_as(key: str) -> str:
+            return server_channel(key) if key in shadowed else key
+
+        # A declinable key is annotated ``UnsetType``, which is how the kernel
+        # reads one (the ``reach`` of the test above fails with ``Any``).
+        fields: dict[str, Any] = {answered_as(key): Any for key in keys.filled}
+        fields.update({answered_as(key): UnsetType for key in keys.declinable})
+        # The keys are the provider's, known only here, so the fields cannot be
+        # the literal a checker reads a functional ``TypedDict`` from.
+        annotations["return"] = TypedDict("Answered", fields)  # ty: ignore[invalid-argument-type]
+    return annotations
 
 
 def _nested(
