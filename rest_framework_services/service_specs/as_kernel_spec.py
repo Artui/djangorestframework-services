@@ -278,6 +278,7 @@ def _service(
                 spec.input_serializer,
                 serializer_context=spec.input_serializer_context,
                 server_owned=hidden,
+                json_schema_registry=spec.json_schema_registry,
             )
             if spec.input_serializer is not None
             else None
@@ -448,6 +449,7 @@ def _selector(
                 context=spec.output_serializer_context,
                 value_keyword=_value_keyword(spec, role),
                 shaped=shaped,
+                registry=registry,
             )
             if role in (None, "output")
             else None
@@ -846,6 +848,7 @@ def _output(
             shaped=shaped,
             # An output selector reflects nothing: it re-reads the service's result.
             open_ended=False,
+            inherited=spec.json_schema_registry,
         )
         # The kernel binds an output ``filter_set`` to the re-read's pool, which
         # carries the service's return and nothing of the call. So where the
@@ -872,6 +875,13 @@ def _output(
         context=output.output_serializer_context,
         value_keyword=_value_keyword(output, "output", many=spec.many),
         shaped=shaped,
+        # The output selector's own, else the service spec's
+        # (test_a_selector_less_output_reads_its_own_registry_else_the_service_spec_s).
+        registry=(
+            output.json_schema_registry
+            if output.json_schema_registry is not None
+            else spec.json_schema_registry
+        ),
     )
 
 
@@ -898,6 +908,7 @@ def _presenter(
     context: Callable[..., Mapping[str, Any]] | None = None,
     value_keyword: str | None = None,
     shaped: bool,
+    registry: JsonSchemaRegistry | None = None,
 ) -> SerializerPresenter | None:
     """The ``SerializerPresenter`` for ``serializer``, or none where there is no serializer.
 
@@ -923,6 +934,7 @@ def _presenter(
         value_keyword=value_keyword,
         # test_the_compiled_output_says_no_key_is_present_under_a_shape
         shaped=shaped,
+        json_schema_registry=registry,
     )
 
 

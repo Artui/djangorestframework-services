@@ -164,6 +164,7 @@ class SerializerPresenter(Presenter):
         serializer_context: Callable[..., Mapping[str, Any]] | None = None,
         value_keyword: str | None = "result",
         shaped: bool = False,
+        json_schema_registry: JsonSchemaRegistry | None = None,
     ) -> None:
         # Resolved at construction but never instantiated: specs are built at
         # import time, and a ``ModelSerializer`` reads the app registry when its
@@ -186,6 +187,9 @@ class SerializerPresenter(Presenter):
         self.serializer_context = serializer_context
         self.value_keyword = value_keyword
         self.shaped = shaped
+        # The spec's, whose ``fields`` rules declare the fields they match
+        # (test_a_compiled_spec_s_output_fields_take_its_rules).
+        self.json_schema_registry = json_schema_registry
 
     def output(self) -> Output:
         """The serializer's fields as an Output, with ``field_audiences`` layered on. Never queries."""
@@ -194,7 +198,7 @@ class SerializerPresenter(Presenter):
         # the check below: a marking it has no field to carry would otherwise be
         # dropped, and the key it hides presented.
         output = (
-            _output(serializer, path=())
+            _output(serializer, path=(), registry=self.json_schema_registry)
             if isinstance(serializer, serializers.Serializer)
             else Output()
         )

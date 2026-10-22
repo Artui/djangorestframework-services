@@ -247,14 +247,16 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             describes this spec's schemas. drfs'
             [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
             reads it when no ``registry=`` is passed, and a passed one wins.
-            The compile reads its ``python_types`` rules where it reads a
-            callable's annotations: a selector's, a target lookup's and a
-            spread service's parameters.
+            The compile reads its ``fields`` rules where it walks the input
+            and output serializers, and its ``python_types`` rules where it
+            reads a callable's annotations: a selector's, a target lookup's and
+            a spread service's parameters.
             As a ``ServiceSpec``'s target lookup or ``output_selector_spec``,
             this spec reads its own, else the service spec's. An affordance is
             a spec of its own and reads only its own.
             A matched fragment reaches the compiled spec split in two: the
-            keywords a ``Parameter`` spells set those fields, and the rest is
+            keywords a ``Parameter`` or ``OutputField`` spells set those
+            fields, and the rest is
             ``json_schema_extra``. A ``format`` outside the kernel's four
             (``decimal``, ``date-time``, ``date``, ``uuid``) is dropped from
             the compiled spec and kept by drfs' own builders. Its ``filters``

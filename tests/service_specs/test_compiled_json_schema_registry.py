@@ -111,3 +111,19 @@ def test_an_affordance_reads_only_its_own_registry() -> None:
     )
     spec.as_kernel_spec()
     assert _reads(kernel_spec(affordance).instance_selector_spec)["pk"].type == "any"
+
+
+def test_a_relaxed_selector_read_keeps_the_registry_s_shape() -> None:
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_select, json_schema_registry=_REGISTRY
+    )
+    total = _reads(kernel_spec_variant(spec, unguarded=True))["total"]
+    assert total.required is False
+    assert (total.type, total.json_schema_extra) == ("string", {"pattern": "^[0-9]+$"})
+
+
+def test_a_relaxed_target_lookup_read_keeps_the_registry_s_shape() -> None:
+    compiled = kernel_spec_variant(_with_lookup(None), unguarded=True)
+    pk = _reads(compiled.instance_selector_spec)["pk"]
+    assert pk.required is False
+    assert (pk.type, pk.json_schema_extra) == ("string", {"pattern": "^[0-9]+$"})
