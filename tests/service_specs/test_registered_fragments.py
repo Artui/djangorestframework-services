@@ -378,8 +378,9 @@ def test_without_a_registry_the_walk_is_unchanged() -> None:
 def test_every_keyword_the_kernel_refuses_is_set_or_dropped() -> None:
     """Each keyword the kernel's tables refuse in ``json_schema_extra`` is handled.
 
-    A keyword the kernel adds to a table would otherwise reach
-    ``json_schema_extra`` and stop a consumer's spec compiling.
+    Set where a field spells it, else dropped, whatever the tables hold the
+    day a kernel release adds to them, so the split never hands the kernel a
+    keyword it refuses.
     """
     parameter = _parameter(dict.fromkeys(PARAMETER_SCHEMA_KEYWORDS))
     field = _output_field(dict.fromkeys(OUTPUT_FIELD_SCHEMA_KEYWORDS))

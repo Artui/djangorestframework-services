@@ -319,10 +319,12 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             and reads only its own.
             A matched fragment reaches the compiled spec split in two: the
             keywords a ``Parameter`` or ``OutputField`` spells set those
-            fields, and the rest is
-            ``json_schema_extra``. A ``format`` outside the kernel's four
-            (``decimal``, ``date-time``, ``date``, ``uuid``) is dropped from
-            the compiled spec and kept by drfs' own builders. Its ``filters``
+            fields and are checked off HTTP, and the rest is
+            ``json_schema_extra``, advertised and not checked. What the kernel
+            would refuse is dropped from the compiled spec and kept by drfs'
+            own builders, so a registry never stops a compile: a ``format``
+            outside the kernel's four (``decimal``, ``date-time``, ``date``,
+            ``uuid``), or a keyword the field's type has no room for. Its ``filters``
             rules never reach the compiled spec, since the kernel builds a
             ``filter_set``'s Parameters itself. Named for the keyword drf-mcp's
             server and the agent toolsets take the same object by, since none

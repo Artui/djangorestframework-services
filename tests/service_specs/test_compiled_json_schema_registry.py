@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Annotated, Any
 
 from django_service_specs.parameters.parameters import Parameter
@@ -111,6 +112,8 @@ def test_an_affordance_reads_only_its_own_registry() -> None:
     )
     spec.as_kernel_spec()
     assert _reads(kernel_spec(affordance).instance_selector_spec)["pk"].type == "any"
+    own = dataclasses.replace(affordance, json_schema_registry=_OTHER)
+    assert _reads(kernel_spec(own).instance_selector_spec)["pk"].type == "integer"
 
 
 def test_a_relaxed_selector_read_keeps_the_registry_s_shape() -> None:
