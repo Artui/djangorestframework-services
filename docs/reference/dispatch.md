@@ -76,8 +76,13 @@ providers, so a stage writes where a later one, or the caller, reads. With none,
 each call gets a fresh dict. A live view builds one per request, with the same
 four entries below, and hands that one dict to its dispatch, to the render, bulk
 included, and to every provider and `get_*` hook it invokes itself (its
-`kwargs`, `input_data` and serializer-context hooks among them) that names
-`call_context`. A second request is a second dict. A serializer's context is a
+`kwargs`, `input_data`, serializer-context and progress-reporter hooks among
+them) and to a `PolymorphicServiceSpec`'s `discriminator`. Each is offered it by
+name only, as the kernel binds it: a callable declaring a `call_context`
+parameter is handed the dict, and one taking `**kwargs` alone never sees it.
+`success_status` and `response_finalizer` are not offered it, and a view naming
+it in either is refused when it is built. Two dispatches in one request share
+the dict; a second request is a second dict. A serializer's context is a
 separate dict of its own:
 a provider that names `call_context` is handed the call's, and copies into the
 context it returns what the serializer should see.

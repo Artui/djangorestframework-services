@@ -37,10 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   raised `TypeError`. A view's request is one call with one dict, holding the
   edge's four standard entries: the view hands it to `dispatch_spec` and to the
   render, bulk included, and every provider and `get_*` hook the view invokes
-  itself, its `kwargs`, `input_data` and serializer-context hooks among them, is
-  offered it by name. A second request is a second dict. Each serializer still
-  has its own copy of its context; a provider copies what it needs from the
-  call's.
+  itself, its `kwargs`, `input_data`, serializer-context and progress-reporter
+  hooks among them, and a `PolymorphicServiceSpec`'s `discriminator`, is offered
+  it by name only, as the kernel binds it: a callable declaring a `call_context`
+  parameter is handed the request's dict, and one taking `**kwargs` alone sees
+  the keys it did before, so a serializer-context hook returning `dict(kwargs)`
+  puts no `call_context` into `serializer.context`. A reporter hook or
+  discriminator naming `call_context` raised `TypeError`. `success_status` and
+  `response_finalizer` are not offered it, and a view naming it in either is
+  refused when it is built. Two dispatches in one request, the retrieve spec
+  finding an update's row and then the update, share the dict; a second request
+  is a second dict. Each serializer still has its own copy of its context; a
+  provider copies what it needs from the call's.
 - **`render_spec_output`, `arender_spec_output`, `render_for_audience` and
   `arender_for_audience` take `call_context=`,** handed to an output context
   provider naming it. A transport renders after the dispatch returns, so it

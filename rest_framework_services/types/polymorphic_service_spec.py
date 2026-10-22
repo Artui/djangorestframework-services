@@ -27,7 +27,7 @@ class PolymorphicServiceSpec:
 
     ```python
     PolymorphicServiceSpec(
-        discriminator=resolve_flow,        # pool: {request, data, user, view} → key
+        discriminator=resolve_flow,        # pool: {request, data, user, view, call_context} → key
         specs={"email": email_spec, "token": token_spec},
     )
     ```
@@ -48,7 +48,8 @@ class PolymorphicServiceSpec:
     Attributes:
         discriminator: Resolved through the framework keyword pool — it declares
             any subset of ``request`` / ``data`` (the *raw* ``request.data``) /
-            ``user`` / ``view`` (or ``**kwargs``) — and returns a key present in
+            ``user`` / ``view`` (or ``**kwargs``), and ``call_context``, the
+            request's call context, by name only — and returns a key present in
             ``specs``. For a no-match / rejected payload it should **raise**
             (e.g. [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError],
             which the view layer maps to a 400); returning a key absent from

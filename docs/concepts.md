@@ -397,7 +397,7 @@ def _pick(*, data):
 
 action_specs = {
     "create": PolymorphicServiceSpec(
-        discriminator=_pick,  # pool: {request, data, user, view}
+        discriminator=_pick,  # pool: {request, data, user, view, call_context}
         specs={
             "email": ServiceSpec(service=register_by_email, input_serializer=EmailIn),
             "token": ServiceSpec(service=register_by_token, input_serializer=TokenIn),
@@ -655,7 +655,9 @@ class ExportViewSet(ServiceViewSet):
 ```
 
 The per-action hook wins over the catch-all, and the first that returns a
-reporter is the one used; returning `None` leaves the no-op. Not
+reporter is the one used; returning `None` leaves the no-op. A hook declaring a
+`call_context` parameter is handed the request's call context, the same dict
+the dispatch carries. Not
 `get_service_kwargs()` or `get_selector_kwargs()`: `progress` is a pool seed,
 and a key those hooks return under a seed's name is dropped, so a reporter
 returned there never reaches the service. Client *input* named `progress` is
