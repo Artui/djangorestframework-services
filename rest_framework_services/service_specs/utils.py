@@ -838,10 +838,10 @@ def serializer_context(
        ``call_context`` is the call's own dict, so a callable reads what an
        earlier stage left there (test_the_output_callable_may_name_the_call_s_context)
        and writes to the one object the call shares; a serializer's context
-       stays its own copy. It is offered only when the call has one: a
-       description made before the call's context is in hand asks a callable
-       naming it once the context exists, rather than with a dict of its own
-       that the serializer which validates would not share.
+       stays its own copy. It is offered only when the call has one, so a
+       description made without the call's context leaves a callable that
+       declares it with no default to the serializer that validates, rather
+       than asking it with a dict that serializer would not share.
 
     One branch to coverage for the offline pair: a request alone is held
     by test_a_registered_request_alone_is_kept_beside_no_view, a view
@@ -868,6 +868,10 @@ def serializer_context(
             "request": request,
             "view": view,
             "user": principal,
+            # Offered only when the call has one, so a description made without
+            # it never asks a callable that must be handed it
+            # (test_a_description_with_no_call_context_does_not_ask_a_callable_naming_it,
+            # which fails if an empty dict stands in).
             **({} if call_context is None else {"call_context": call_context}),
             **(extras or {}),
         }
