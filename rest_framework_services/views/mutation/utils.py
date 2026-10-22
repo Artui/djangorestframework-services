@@ -47,6 +47,7 @@ from rest_framework_services.views.utils import (
     add_affordances,
     resolve_serializer_context,
     resolve_view_hooks,
+    view_call_context,
 )
 
 
@@ -333,6 +334,9 @@ def _dispatch_bulk_via_spec(
         params = {**body, **url_kwargs}
 
     view_hooks = resolve_view_hooks(view, request)
+    # The request's one dict, for the edge and the renderer alike; each hand-off
+    # is held by test_a_bulk_create_hands_every_provider_the_request_s_context.
+    call_context = view_call_context(view, request)
     try:
         result = dispatch_spec(
             spec,
@@ -347,6 +351,7 @@ def _dispatch_bulk_via_spec(
             view=view,
             view_hooks=view_hooks,
             on_target_resolved=check_view_object_permissions,
+            call_context=call_context,
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
@@ -364,6 +369,7 @@ def _dispatch_bulk_via_spec(
             request=request,
             extras={"result": result.value},
             view_hooks=view_hooks,
+            call_context=call_context,
         )
         response = Response(payload, status=status_for_a_body(status))
 
@@ -432,6 +438,9 @@ def dispatch_mutation_for_spec(
             view_hooks=view_hooks,
             on_target_resolved=check_view_object_permissions,
             partial=partial,
+            # The request's one dict, which the output context below hands its
+            # providers too (test_a_create_hands_every_provider_the_request_s_context).
+            call_context=view_call_context(view, request),
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc

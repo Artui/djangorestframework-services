@@ -162,6 +162,32 @@ def with_output_layers(result: DispatchResult, state: EdgeCallState) -> Dispatch
     return dataclasses.replace(result, context=dataclasses.replace(result.context, ambient=ambient))
 
 
+def fill_call_context(
+    call_context: dict[str, Any] | None, *, request: Any, view: Any
+) -> dict[str, Any]:
+    """The call's context, its four standard entries filled where it has none.
+
+    The edge fills the dict it is handed with this, and a live view builds the
+    one dict of its request with it, so the two never disagree on what the
+    standard entries are.
+    """
+    # The caller's dict itself, tested ``is None`` rather than for truth, so an
+    # empty one passed is still theirs
+    # (test_an_empty_dict_passed_is_the_one_every_stage_is_handed). The four
+    # standard entries are set where the caller put none, so the caller's win
+    # (test_a_caller_s_own_entries_win), and each one's ``setdefault`` is held by
+    # test_the_edge_fills_the_standard_entries_for_a_kwargs_provider. ``format``
+    # is ``None``: the edge is handed none, as ``base_serializer_context`` says.
+    # ``action`` is the operation's name where the view handed in carries one,
+    # an empty one being none (test_the_action_is_the_view_s_where_it_has_one).
+    context: dict[str, Any] = {} if call_context is None else call_context
+    context.setdefault("request", request)
+    context.setdefault("view", view)
+    context.setdefault("format", None)
+    context.setdefault("action", getattr(view, "action", None) or None)
+    return context
+
+
 def prepare_edge_call(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
@@ -195,20 +221,7 @@ def prepare_edge_call(
         raise TypeError(
             f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
         )
-    # The call's context: the caller's dict itself, tested ``is None`` rather
-    # than for truth, so an empty one passed is still theirs
-    # (test_an_empty_dict_passed_is_the_one_every_stage_is_handed). The four
-    # standard entries are set where the caller put none, so the caller's win
-    # (test_a_caller_s_own_entries_win), and each one's ``setdefault`` is held by
-    # test_the_edge_fills_the_standard_entries_for_a_kwargs_provider. ``format``
-    # is ``None``: the edge is handed none, as ``base_serializer_context`` says.
-    # ``action`` is the operation's name where the view handed in carries one,
-    # an empty one being none (test_the_action_is_the_view_s_where_it_has_one).
-    context: dict[str, Any] = {} if call_context is None else call_context
-    context.setdefault("request", request)
-    context.setdefault("view", view)
-    context.setdefault("format", None)
-    context.setdefault("action", getattr(view, "action", None) or None)
+    context = fill_call_context(call_context, request=request, view=view)
     hooks = view_hooks if view_hooks is not None else ViewHooks()
     state.view_hooks = hooks
     # What a service spec's output re-read is filtered by, read when it runs,
