@@ -1279,7 +1279,12 @@ def _route_author_values(
     seeded = seeds.reserved
     provider = spec.kwargs
     keys = provider_keys(provider)
-    owned = keys.filled if keys is not None else frozenset()
+    # A key a filter reads and a callable hides is answered on its server
+    # channel, so the provider owns the parameter and never the filter's
+    # argument of that name, which stays the caller's
+    # (test_a_typed_provider_s_value_reaches_the_parameter_and_not_the_filter).
+    shadowed = _shadowed(spec)
+    owned = (keys.filled if keys is not None else frozenset()) - shadowed
     wire = _source_to_wire(spec)
     # A hook naming an owned key by the wire name of the field whose ``source``
     # it is names the same value, so it is dropped as the key itself is
@@ -1326,7 +1331,6 @@ def _route_author_values(
     # A key a filter reads and a callable hides is the parameter's alone, on its
     # server channel, and never the filter's argument
     # (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter).
-    shadowed = _shadowed(spec)
     channelled = {
         server_channel(name): value
         for name, value in {**hook_values, **provided}.items()
