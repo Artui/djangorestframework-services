@@ -10,9 +10,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+from django.core.exceptions import ImproperlyConfigured
+from rest_framework import serializers
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
+from rest_framework_services import ServiceSpec, ServiceViewSet
 from rest_framework_services.views.utils import (
     resolve_extra_kwargs,
     resolve_input_extras,
@@ -97,3 +101,22 @@ def test_the_spec_serializer_context_layer_is_handed_the_view_s_dict() -> None:
         spec_provider=_recording(seen),
     )
     assert seen[0] is view_call_context(view, request)
+
+
+class _Title(serializers.Serializer):
+    title = serializers.CharField()
+
+
+@pytest.mark.parametrize("field", ["success_status", "response_finalizer"])
+def test_a_status_or_finalizer_naming_the_call_context_is_refused_when_the_view_is_built(
+    field: str,
+) -> None:
+    """Neither is offered the request's dict, so naming it is refused up front, not at a request."""
+
+    def naming(*, call_context: dict[str, Any]) -> Any: ...
+
+    spec = ServiceSpec(service=lambda *, data: data, input_serializer=_Title, **{field: naming})
+    viewset = type("_VS", (ServiceViewSet,), {"action_specs": {"create": spec}})
+
+    with pytest.raises(ImproperlyConfigured, match=r"\['call_context'\]"):
+        viewset.as_view({"post": "create"})

@@ -264,7 +264,9 @@ class SpecRegistryTests(APITestCase):
 
 
 class CallContextTests(APITestCase):
-    """The dict a call carries, handed to ``dispatch_spec`` from off HTTP."""
+    """The dict a call carries: the route's own, and one handed to ``dispatch_spec`` off HTTP."""
+
+    client_class = APIClient
 
     def setUp(self) -> None:
         self.invoice = Invoice.objects.create(customer="Acme", amount_cents=1)
@@ -308,6 +310,14 @@ class CallContextTests(APITestCase):
         # What the provider read from it is what the service wrote.
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.notes, "[operation] reconcile")
+
+    def test_over_http_the_provider_reads_the_route_s_action(self) -> None:
+        # Routed, the view's call context carries the viewset's action name.
+        response = self.client.post(f"/invoices/{self.invoice.pk}/record/", {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["notes"], "[operation] record")
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.notes, "[operation] record")
 
     def test_with_no_view_the_action_is_none(self) -> None:
         # No view, so the edge's ``action`` entry is ``None`` and the provider says so.

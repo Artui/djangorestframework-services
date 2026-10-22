@@ -80,6 +80,27 @@ def test_the_kernel_s_own_dispatch_answers_the_rows() -> None:
     assert present(spec, result) == [{"title": "first"}, {"title": "second"}]
 
 
+@pytest.mark.parametrize(
+    "returned",
+    [pytest.param({"title": "one"}, id="mapping"), pytest.param("rows", id="str")],
+)
+def test_the_kernel_s_own_dispatch_answers_a_list_for_a_return_that_is_no_rows(
+    returned: Any,
+) -> None:
+    """The kernel's ``dispatch`` does not refuse a ``returns_many`` return that is no rows.
+
+    It records a gap in the kernel rather than a behaviour drfs relies on: drfs'
+    own edge refuses a mapping or a ``str`` as the author's error, and the
+    kernel's ``dispatch`` answers either as a list. When the kernel refuses
+    them, this test should flip to assert the refusal.
+    """
+    spec = _listed(service=lambda: returned)
+
+    result = dispatch(kernel_spec(spec), principal=AnonymousUser(), arguments={})
+
+    assert result.kind == "list"
+
+
 def test_the_kernel_s_output_schema_is_an_array_of_the_row() -> None:
     schema = spec_output_schema(_compiled(_listed()))
 
