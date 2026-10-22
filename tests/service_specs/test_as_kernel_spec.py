@@ -357,23 +357,36 @@ class TestReflectedReads:
 
         assert tuple(reads) == (
             # No default, so only an argument fills it.
-            Parameter("pk", "integer", required=True),
-            Parameter("status", "string", nullable=True, choices=("open", "closed"), default=None),
-            Parameter("colour", "string", choices=("red", "blue"), default=_Colour.RED),
-            Parameter("when", "string", format="date-time", nullable=True, default=None),
-            Parameter("day", "string", format="date", nullable=True, default=None),
-            Parameter("amount", "string", format="decimal", nullable=True, default=None),
-            Parameter("ratio", "number", default=1.0),
-            Parameter("flag", "boolean", default=False),
-            Parameter("tags", "array", items="string", nullable=True, default=None),
-            Parameter("ids", "array", items="integer", nullable=True, default=None),
-            Parameter("bag", "array", nullable=True, default=None),
-            Parameter("extra", "object", nullable=True, default=None),
-            Parameter("either", "any", nullable=True, default=None),
-            Parameter("mixed", "any", default=1),
-            Parameter("note", "string", default="", help="A note."),
+            Parameter("pk", "integer", required=True, reflected=True),
+            Parameter(
+                "status",
+                "string",
+                nullable=True,
+                choices=("open", "closed"),
+                default=None,
+                reflected=True,
+            ),
+            Parameter(
+                "colour", "string", choices=("red", "blue"), default=_Colour.RED, reflected=True
+            ),
+            Parameter(
+                "when", "string", format="date-time", nullable=True, default=None, reflected=True
+            ),
+            Parameter("day", "string", format="date", nullable=True, default=None, reflected=True),
+            Parameter(
+                "amount", "string", format="decimal", nullable=True, default=None, reflected=True
+            ),
+            Parameter("ratio", "number", default=1.0, reflected=True),
+            Parameter("flag", "boolean", default=False, reflected=True),
+            Parameter("tags", "array", items="string", nullable=True, default=None, reflected=True),
+            Parameter("ids", "array", items="integer", nullable=True, default=None, reflected=True),
+            Parameter("bag", "array", nullable=True, default=None, reflected=True),
+            Parameter("extra", "object", nullable=True, default=None, reflected=True),
+            Parameter("either", "any", nullable=True, default=None, reflected=True),
+            Parameter("mixed", "any", default=1, reflected=True),
+            Parameter("note", "string", default="", help="A note.", reflected=True),
             # ``Any`` admits ``None``, as an unannotated parameter reads.
-            Parameter("untyped", "any", nullable=True, default=None),
+            Parameter("untyped", "any", nullable=True, default=None, reflected=True),
         )
 
     def test_choices_take_their_values_json_type(self) -> None:
@@ -392,13 +405,13 @@ class TestReflectedReads:
         reads = _kernel_selector(SelectorSpec(kind=SelectorKind.LIST, selector=read)).reads
 
         assert tuple(reads) == (
-            Parameter("size", "integer", choices=(1, 2), default=1),
-            Parameter("scale", "number", choices=(0.5, 1.5), default=_Scale.HALF),
-            Parameter("on", "boolean", choices=(True,), default=True),
-            Parameter("raw", "any", default=b"x"),
-            Parameter("ids", "array", items="integer", nullable=True, default=None),
-            Parameter("rows", "array", default=[]),
-            Parameter("options", "object", default={}),
+            Parameter("size", "integer", choices=(1, 2), default=1, reflected=True),
+            Parameter("scale", "number", choices=(0.5, 1.5), default=_Scale.HALF, reflected=True),
+            Parameter("on", "boolean", choices=(True,), default=True, reflected=True),
+            Parameter("raw", "any", default=b"x", reflected=True),
+            Parameter("ids", "array", items="integer", nullable=True, default=None, reflected=True),
+            Parameter("rows", "array", default=[], reflected=True),
+            Parameter("options", "object", default={}, reflected=True),
         )
 
     def test_unpacked_typed_dict_keys_and_markers(self) -> None:
@@ -408,8 +421,8 @@ class TestReflectedReads:
         reads = _kernel_selector(SelectorSpec(kind=SelectorKind.LIST, selector=read)).reads
 
         assert tuple(reads) == (
-            Parameter("project_pk", "integer", required=True),
-            Parameter("label", "string"),
+            Parameter("project_pk", "integer", required=True, reflected=True),
+            Parameter("label", "string", reflected=True),
         )
 
     def test_a_positional_only_parameter_is_no_read(self) -> None:
@@ -455,7 +468,7 @@ class TestReflectedReads:
 
         compiled = as_kernel_spec(ServiceSpec(service=archive), spread=True)
 
-        assert tuple(compiled.reads) == (Parameter("reason", "string", default=""),)
+        assert tuple(compiled.reads) == (Parameter("reason", "string", default="", reflected=True),)
 
     def test_a_service_without_a_serializer_reads_no_signature_by_default(self) -> None:
         # ``AUTO`` and ``BUNDLE`` leave a service's own parameters to its author.

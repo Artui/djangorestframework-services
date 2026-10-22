@@ -132,6 +132,12 @@ def as_kernel_spec(
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
       winning over a reflected one of its name, and a read unless it is a
       shape (below); one the target lookup reads joins the lookup's reads.
+      Every read taken off a signature is marked ``reflected`` and a declared
+      one is not, so the kernel fills a registered pool seed's name in the
+      former on every dispatch, ``kernel_spec(spec)``'s included, and still
+      refuses the latter as an argument meeting a seed
+      (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed,
+      test_a_declared_read_named_like_the_seed_is_still_refused_by_the_kernel).
     - ``shapes`` is each declared ``QueryParam`` of the top-level spec that no
       callable of the call takes by name: not the service or selector, a
       precondition, a target lookup, a ``kwargs`` or ``input_data`` provider,
@@ -1455,6 +1461,15 @@ def _parameter(
         kind,
         required=required or marked_required,
         nullable=nullable,
+        # Every parameter built here is read off a signature, which is what the
+        # mark says: the kernel fills a registered seed's name in it on every
+        # compile, so a selector's ``tenant`` is the project's seed whether the
+        # DRF edge or any other transport dispatches it
+        # (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed). A
+        # declared ``UrlKwarg`` or ``QueryParam`` is built elsewhere and stays
+        # unmarked, so the kernel still refuses one named like a seed
+        # (test_a_declared_read_is_not_marked_and_replaces_the_reflected_one).
+        reflected=True,
         # ``InputRequired`` is the author saying the caller must send the key, so a
         # Python default beside it (``= None``, written so the signature is valid)
         # is not one the kernel may fill: it lets a required parameter with a
