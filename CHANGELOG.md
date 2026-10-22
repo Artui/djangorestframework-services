@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Every read taken off a signature is a `reflected` kernel `Parameter`**, on
+  the default compile too: a selector's parameters, a target lookup's, a spread
+  service's, and the keys of an `Unpack`-ed `TypedDict`. The kernel fills a
+  registered pool seed's name in such a read on every dispatch, so
+  `dispatch(kernel_spec(spec), pool_seeds=...)` reads a seed in a selector's
+  signature, as the DRF views already did. A declared `UrlKwarg` or
+  `QueryParam` stays unmarked and is still refused when it meets a seed. A
+  compiled read now compares unequal to a hand-built `Parameter` without
+  `reflected=True`, so a test asserting `kernel_spec(spec).reads == (...)`
+  needs the flag.
+- The DRF views no longer compile a seed's name out of the reads for each
+  call; the kernel fills it. HTTP answers are unchanged. `as_kernel_spec(seeded=)`
+  is unchanged.
+- Requires `django-service-specs>=0.15.0`, whose dispatch fills a reflected
+  read from a seed and lets an input serializer field named like a registered
+  seed validate into `data` while the seed keeps its own value.
+
 ## [0.59.0] — 2026-10-22
 
 ### Upgrade notes

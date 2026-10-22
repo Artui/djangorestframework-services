@@ -569,7 +569,10 @@ was handed, so one passed there is the seed and wins; with none passed, an entry
 the caller put in `call_context` is read. A transport that runs the kernel's
 `dispatch` over `kernel_spec(spec)` registers no seed at all, and its context
 holds the request a run arrived on and, perhaps, a view built for the operation
-([the call's context](../reference/dispatch.md#transport-neutral-dispatch)).
+([the call's context](../reference/dispatch.md#transport-neutral-dispatch)). A seed
+it does register fills a selector's, a target lookup's or a spread service's
+signature parameter of that name, since the compile marks every such read
+`reflected`, while a declared read of that name is still refused.
 
 What a carried request or view becomes differs by consumer, and by what it is:
 

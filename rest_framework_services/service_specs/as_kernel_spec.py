@@ -251,7 +251,8 @@ def _service(
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
-        # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
+        # A seed of the call fills its name
+        # (test_seeded_compiles_a_name_out_of_a_spread_service_s_reads).
         _spread_signature(spec, hidden=hidden | seeded, open_ended=open_ended)
         if _takes_its_signature(spec, spread)
         else [],
@@ -416,7 +417,8 @@ def _selector(
     reads = Parameters()
     if role != "output":
         # A seed of the call fills its name, so it is no argument
-        # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
+        # (test_seeded_compiles_a_name_out_of_a_selector_s_reads_a_marked_read_stays,
+        # test_seeded_compiles_a_name_out_of_a_target_lookup_s_reads).
         reflected = _reflected(
             spec.selector, hidden=hidden | seeded, open_ended=open_ended, registry=registry
         )
