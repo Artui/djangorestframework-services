@@ -182,9 +182,10 @@ class DRFPermissionCheck(PermissionCheck):
         request = carried("request", seeds, call_context)
         view = carried("view", seeds, call_context)
         plain = request if isinstance(request, HttpRequest) else None
-        # The wrap's condition is held by
-        # test_a_carried_django_request_is_wrapped_with_the_routed_query_string,
-        # which fails if a plain request is asked unwrapped.
+        # Three conjuncts, one branch to coverage. The plain-request one is held
+        # by test_a_carried_django_request_is_wrapped_beside_a_carried_view, where
+        # a carried view would otherwise skip the block; the request choice inside
+        # it by test_a_carried_django_request_is_wrapped_with_the_routed_query_string.
         if plain is not None or request is None or view is None:
             offline = self._context(
                 principal, arguments, offline_action(call_context), http_request=plain

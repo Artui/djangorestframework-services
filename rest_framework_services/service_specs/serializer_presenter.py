@@ -293,7 +293,9 @@ def _output_field(
     ``output_to_json_schema`` describes it. Its own ``allow_null``, an author's
     ``label`` and its marking stand beside the fragment, as drfs' walk writes
     the label over it
-    (test_the_field_s_own_help_label_and_null_stand_beside_the_fragment).
+    (test_the_field_s_own_help_label_and_null_stand_beside_the_fragment). A
+    fragment admitting ``null`` makes nullable a field that does not allow it
+    (test_a_fragment_that_admits_null_makes_an_output_field_nullable_that_the_field_does_not).
     """
     fragment = registered_fragment(registry, field)
     if fragment is not None:

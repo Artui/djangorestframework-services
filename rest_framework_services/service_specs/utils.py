@@ -866,8 +866,10 @@ def serializer_context(
     plain = request if isinstance(request, HttpRequest) else None
     # One branch to coverage: a plain request is held by
     # test_a_carried_django_request_is_wrapped_with_the_shapes_as_its_query_string,
-    # which fails if it is used unwrapped, and neither carried by
-    # test_the_serializer_context_carries_an_offline_request_for_the_principal.
+    # which fails if it is used unwrapped, neither carried by
+    # test_the_serializer_context_carries_an_offline_request_for_the_principal,
+    # and a view carried alone, kept beside no request, by
+    # test_a_plain_view_alone_is_kept_beside_no_request.
     if plain is not None or (request is None and view is None):
         offline = offline_pair(
             principal,
