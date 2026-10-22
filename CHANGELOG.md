@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] — 2026-10-22
+
 ### Upgrade notes
 
 - **Read a shaping `QueryParam` from `kernel_spec(spec).shapes`, not
@@ -5558,7 +5560,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.58.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...HEAD
+[0.59.0]: https://github.com/Artui/djangorestframework-services/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/Artui/djangorestframework-services/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/Artui/djangorestframework-services/compare/v0.56.1...v0.57.0
 [0.56.1]: https://github.com/Artui/djangorestframework-services/compare/v0.56.0...v0.56.1
