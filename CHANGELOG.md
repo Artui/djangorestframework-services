@@ -125,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return by the declaration, not by the kind the kernel reports, so a mapping,
   `str`, `bytes`, a non-iterable or `None` is refused there with
   `ImproperlyConfigured`. The kernel's own `dispatch` does not refuse a mapping
-  or a string, and presents it row by row.
+  or a string: it answers `kind="list"` and iterates it.
 - **`kernel_spec_variant(spec, ...)` is no longer `kernel_spec(spec)` itself
   for a spec with a required reflected read to relax,** since the variant drfs'
   edge dispatches relaxes it. A variant with nothing to relax and nothing else

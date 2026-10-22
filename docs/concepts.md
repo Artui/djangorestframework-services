@@ -702,8 +702,8 @@ as `kind="list"`. drfs' edge, `dispatch_spec` and the views, checks the return
 by the declaration, not by the kind the kernel reports: a mapping, a `str`,
 `bytes`, a non-iterable or `None` is refused with `ImproperlyConfigured`, rather
 than being presented row by row because the kernel called it a list. The
-kernel's own `dispatch` of the compiled spec does not check it, and presents a
-mapping or a string row by row. A `many` spec is not this case: its return is
+kernel's own `dispatch` of the compiled spec does not check it: it answers a
+mapping or a string as `kind="list"`, and presenting it iterates it. A `many` spec is not this case: its return is
 already its rows, and it does not compile to `returns_many` (the kernel refuses
 the two together).
 
