@@ -513,7 +513,10 @@ renders the rows as a list. Without a `selector` it re-fetches nothing and
 renders the rows the service returned, as a list, so the service must return
 them: a `QuerySet`, a list or another iterable of rows. Anything else, `None`
 included, raises `ImproperlyConfigured` naming the declaration, after the
-service has written. Full walkthrough in the
+service has written. The declaration compiles to the kernel's `returns_many`
+(a `LIST` output with no `selector`, on a spec that is not `many`), so the
+kernel's own `dispatch` answers it as a list, presented row by row, and its
+output schema is an array of the row. Full walkthrough in the
 [bulk & collection mutations recipe](recipes/bulk-mutations.md).
 
 ## Dispatch
@@ -695,7 +698,13 @@ valid only beside a `collection_selector_spec`, the first row renders the
 service's return as a list, row by row, and the fourth does not apply: a list is
 never `None`, so a `None` return is refused as the author's error, as is any
 return that is no set of rows. Off HTTP, `dispatch_spec` reports the same list
-as `kind="list"`.
+as `kind="list"`. The edge checks the return by the declaration, not by the kind
+the kernel reports: a mapping, a `str`, `bytes`, a non-iterable or `None` is
+refused with `ImproperlyConfigured` however the spec is compiled, `returns_many`
+included, rather than being presented row by row because the kernel called it a
+list. A `many` spec is not this case: its return is
+already its rows, and it does not compile to `returns_many` (the kernel refuses
+the two together).
 
 A single-row service with no output re-read presents its own return;
 `allow_none=True` on the `ServiceSpec` declares it may be `None`, and its output

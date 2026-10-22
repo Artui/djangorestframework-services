@@ -450,7 +450,8 @@ list_widgets_spec = SelectorSpec(
 ```
 
 Each entry is a parameter of the compiled spec, so it is an argument a caller
-sends, the schema lists and `REJECT` admits (see
+sends, the schema lists (bar a `QueryParam` that is a shape, which
+`spec_to_json_schema` does not list) and `REJECT` admits (see
 [what a spec declares for a caller off HTTP](../reference/service-specs.md#what-a-spec-declares-for-a-caller-off-http)).
 Where the value comes from depends on the view the call carries:
 
@@ -504,11 +505,102 @@ live view reads it from the request's query string alone and never writes a body
 value there, while off HTTP the caller sends it as an argument, which joins an
 offline request's `request.query_params` when the query string lacks it.
 
+A `QueryParam` that no callable of the call takes by name is a **shape**: it
+shapes what is rendered rather than what is run, so the kernel hands it to the
+presenter alone ([which callables count](../reference/types.md#queryparam)).
+When the kernel's `dispatch` presents the result, the presenter builds an
+offline request for the principal whose query string is the call's shapes, so a
+serializer reading `fields` off `request.query_params` finds what the caller
+sent without anything being put on a request by hand:
+
+```python
+from django_service_specs import dispatch, kernel_spec, present
+from rest_framework.permissions import AllowAny
+
+
+class AuthorSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        wanted = self.context["request"].query_params.get("fields")
+        if wanted:
+            data = {name: data[name] for name in wanted.split(",") if name in data}
+        return data
+
+
+authors = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=list_authors,  # takes no `fields`, so it is a shape
+    output_serializer=AuthorSerializer,
+    permission_classes=[AllowAny],
+    reads=[QueryParam("fields", description="Comma-separated fields to return.")],
+)
+
+spec = kernel_spec(authors)
+result = dispatch(spec, principal=user, arguments={"fields": "name"})
+present(spec, result)  # [{"name": "Ada"}]
+```
+
+The drfs edge renders in a separate step, with the `request` and `view` the
+caller hands `render_spec_output`, so there the query string is the one the
+request carries: the offline request `build_offline_context(query_params=)`
+seeds, and onto which `dispatch_spec` puts a declared `QueryParam` the string
+lacks when the view is an offline one. A DRF `Request` the call carries is left
+as it is on the kernel's route: it has a query string of its own.
+
 Both types live here rather than in each adapter so the same declaration means the
 same thing on every transport. Adapters validate a registration set with
 [`validate_channel_names`][rest_framework_services.types.validate_channel_names.validate_channel_names], which
 always includes `RESERVED_POOL_SEEDS` and takes the transport's own reserved
 pagination names on top.
+
+## The request and view a call carries
+
+Over HTTP the permission classes and the serializers meet the request and view
+the framework built. Off HTTP the call may carry them too, in either of two
+places, and each consumer reads them in the same order: the `request` or `view`
+the call registered as a seed, else the entry of that name in its
+`call_context`, with `None` in either place counting as no value. A seed outranks
+the context, so a transport's own registered object is never replaced by what a
+caller put in the dict. `dispatch_spec` registers the `request` and `view` it
+was handed, so one passed there is the seed and wins; with none passed, an entry
+the caller put in `call_context` is read. A transport that runs the kernel's
+`dispatch` over `kernel_spec(spec)` registers no seed at all, and its context
+holds the request a run arrived on and, perhaps, a view built for the operation
+([the call's context](../reference/dispatch.md#transport-neutral-dispatch)).
+
+What a carried request or view becomes differs by consumer, and by what it is:
+
+| The call carries... | `DRFPermissionCheck` asks the classes | The serializer context holds |
+| --- | --- | --- |
+| a DRF `Request` and a view | both, as they are | both, as they are |
+| a DRF `Request` alone | the request, beside an offline view | the request, beside `None` for the view |
+| a view alone | the view, beside an offline request for the principal | the view, beside `None` for the request |
+| a Django `HttpRequest` DRF has not wrapped | a DRF `Request` around a copy of it, beside the carried view, else an offline view | the same wrapped request, beside the carried view, else an offline view built around it |
+| neither | an offline request and view for the principal | an offline request and view for the principal |
+
+A permission class is never handed `None` for a request or a view, which is why
+it fills the half the call lacks. A serializer is not asked to, and pairing a
+carried request with a view built around another one would describe a call that
+never happened, so the serializer context keeps one carried half as it is. A
+view that answers `get_serializer_context` supplies the serializer context
+whole, as it does on HTTP.
+
+A carried Django request is wrapped as `build_offline_context(http_request=)`
+wraps one: a copy of it, so the request the run arrived on is never written to,
+with its headers and session shared, its `user` the principal, and its query
+string replaced. The query string is the arrived-on endpoint's, not this
+operation's, so it is not kept. The serializer's is the call's shapes, and
+empty where the call sent none. A permission class's is the value of each
+declared `QueryParam` the call sent, or its `default`, with the request's own
+left alone only when the permission check is asked with no arguments at all.
+
+The offline view's `action` is the call context's `action`, where that is a
+non-empty string, so a permission class or a serializer branching on
+`view.action` reads the operation's name rather than `None`. A view the call
+carries keeps its own `action`.
 
 ## Which one do I reach for?
 
