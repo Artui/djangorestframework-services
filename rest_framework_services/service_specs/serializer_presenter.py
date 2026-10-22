@@ -19,8 +19,14 @@ from rest_framework_services.service_specs.base_serializer_context import base_s
 from rest_framework_services.service_specs.renderable_serializer_class import (
     renderable_serializer_class,
 )
-from rest_framework_services.service_specs.utils import output_view_layers, serializer_context
+from rest_framework_services.service_specs.utils import (
+    fragment_keywords,
+    output_view_layers,
+    registered_fragment,
+    serializer_context,
+)
 from rest_framework_services.types.field_marking import MARKING
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 
 # How many times one serializer class may appear on the walk's path before the
 # next appearance is truncated: drfs' schema walk allows the same, so a
@@ -252,11 +258,16 @@ def _context() -> dict[str, Any]:
     return base_serializer_context(view=None, request=None)
 
 
-def _output(serializer: serializers.Serializer, *, path: tuple[type, ...]) -> Output:
+def _output(
+    serializer: serializers.Serializer,
+    *,
+    path: tuple[type, ...],
+    registry: JsonSchemaRegistry | None = None,
+) -> Output:
     path = (*path, type(serializer))
     return Output(
         tuple(
-            _output_field(name, field, serializer=serializer, path=path)
+            _output_field(name, field, serializer=serializer, path=path, registry=registry)
             for name, field in serializer.fields.items()
             if not field.write_only
         )
@@ -269,8 +280,28 @@ def _output_field(
     *,
     serializer: serializers.Serializer,
     path: tuple[type, ...],
+    registry: JsonSchemaRegistry | None = None,
 ) -> OutputField:
-    shape = _shape(field, path=path)
+    """One rendered field as an ``OutputField``.
+
+    A field a ``registry`` rule matches is declared by the rule's fragment, split
+    by ``fragment_keywords``, before any built-in reading, as drfs'
+    ``output_to_json_schema`` describes it. Its own ``allow_null``, an author's
+    ``label`` and its marking stand beside the fragment, as drfs' walk writes
+    the label over it
+    (test_the_field_s_own_help_label_and_null_stand_beside_the_fragment).
+    """
+    fragment = registered_fragment(registry, field)
+    if fragment is not None:
+        declared = fragment_keywords(fragment, output=True)
+        declared.update(
+            nullable=field.allow_null or declared.get("nullable", False),
+            label=_declared_label(name, field) or declared.get("label"),
+            always_present=_always_rendered(field),
+            marking=_marking(field, serializer=serializer, name=name),
+        )
+        return OutputField(name, declared.pop("type"), **declared)
+    shape = _shape(field, path=path, registry=registry)
     return OutputField(
         name,
         shape.type or "any",
@@ -311,15 +342,33 @@ def _none_always_present(output: Output) -> Output:
     )
 
 
-def _shape(field: serializers.Field, *, path: tuple[type, ...]) -> _Shape:
-    """One field's type, and what it nests, with ``type=None`` where DRF names none."""
+def _shape(
+    field: serializers.Field, *, path: tuple[type, ...], registry: JsonSchemaRegistry | None = None
+) -> _Shape:
+    """One field's type, and what it nests, with ``type=None`` where DRF names none.
+
+    A ``ListField``'s element a ``registry`` rule matches is typed by the rule,
+    and only typed (test_a_registered_list_element_is_typed_by_its_rule); a
+    nested serializer's fields are matched as the top level's are
+    (test_a_nested_serializer_s_fields_are_matched_too). A ``many=True``
+    serializer's rows are walked whatever matches their class, as drfs' walk
+    describes them (test_a_rule_wins_over_the_walk_of_a_nested_serializer).
+    """
     # One arc for both classes, so each is held by its own field of
     # test_nested_serializers_and_lists_nest_their_output: ``rows`` and ``wrapped``.
     if isinstance(field, serializers.ListSerializer | serializers.ListField):
         # ``ListSerializer.child`` is typed ``Field`` by the stubs; both lists
         # hold one at runtime, ``ListField``'s defaulting to an untyped field.
         child: Any = field.child
-        element = _shape(child, path=path)
+        fragment = (
+            registered_fragment(registry, child)
+            if isinstance(field, serializers.ListField)
+            else None
+        )
+        if fragment is not None:
+            kind = fragment_keywords(fragment, output=True)["type"]
+            return _Shape("array", items=None if kind == "any" else kind)
+        element = _shape(child, path=path, registry=registry)
         items = element.fields if element.fields is not None else element.type
         # Only a declared element can be declared nullable: ``OutputField``
         # refuses ``items_nullable`` without ``items``. Each condition is held
@@ -331,7 +380,7 @@ def _shape(field: serializers.Field, *, path: tuple[type, ...]) -> _Shape:
     if isinstance(field, serializers.Serializer):
         if path.count(type(field)) >= _MAX_SERIALIZER_APPEARANCES:
             return _Shape("object")
-        return _Shape("object", fields=_output(field, path=path))
+        return _Shape("object", fields=_output(field, path=path, registry=registry))
     if isinstance(field, serializers.MultipleChoiceField):
         # Before ``ChoiceField``, which it subclasses: a set of the choices. A
         # list's choices are its element's, as the kernel's other adapters

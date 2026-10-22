@@ -36,6 +36,7 @@ from rest_framework_services.service_specs.utils import (
     asked_of_the_caller,
     edge_call_state,
     fills_its_own,
+    fragment_keywords,
     left_to_the_callable,
     server_channel,
     values_beside_filter,
@@ -43,6 +44,7 @@ from rest_framework_services.service_specs.utils import (
 )
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_input_description import read_input_description
@@ -330,6 +332,7 @@ def _selector(
     audiences: Mapping[str, FieldMarking] | None = None,
     seeded: frozenset[str] = frozenset(),
     shaped: bool,
+    inherited: JsonSchemaRegistry | None = None,
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -339,8 +342,12 @@ def _selector(
     call's ``filter_data`` reaches its ``filter_set`` alone (``_output``).
     Only a top-level selector spec compiles ``shapes``: the kernel refuses
     them on a nested one. ``shaped`` says an output selector's service spec
-    compiles some, which its presenter renders by.
+    compiles some, which its presenter renders by. ``inherited`` is a nested
+    spec's service spec's ``json_schema_registry``, which describes its reads
+    where it declares none of its own (test_a_target_lookup_reads_its_own_registry,
+    test_a_target_lookup_with_none_reads_the_service_spec_s).
     """
+    registry = spec.json_schema_registry if spec.json_schema_registry is not None else inherited
     label = "SelectorSpec" if role is None else f"ServiceSpec.{role}_selector_spec"
     if role is not None:
         _refuse_nested_runs(spec, label)
@@ -370,7 +377,7 @@ def _selector(
     if role != "output":
         # A seed of the call fills its name, so it is no argument
         # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
-        reflected = _reflected(spec.selector, hidden=hidden | seeded)
+        reflected = _reflected(spec.selector, hidden=hidden | seeded, registry=registry)
         if role is not None:
             # A target lookup's own ``reads`` are declared as the spec's are, so
             # each is its parameter with the type it declares, and a string
@@ -494,12 +501,13 @@ def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
     caller skips the target lookup's reads
     (test_a_read_of_the_target_lookup_stays_the_lookup_s).
     """
-    reflected = _reflected(spec.service, hidden=hidden)
+    registry = spec.json_schema_registry
+    reflected = _reflected(spec.service, hidden=hidden, registry=registry)
     if not _takes_any_name(spec.service):
         return reflected
     names = set(_names(reflected))
     for precondition in spec.preconditions or ():
-        for parameter in _reflected(precondition, hidden=hidden):
+        for parameter in _reflected(precondition, hidden=hidden, registry=registry):
             if parameter.name not in names:
                 names.add(parameter.name)
                 reflected.append(parameter)
@@ -763,7 +771,13 @@ def _nested(
     if nested is None or (role == "instance" and nested.selector is None):
         return None
     return _selector(
-        nested, role=role, hidden=hidden, declared=declared, seeded=seeded, shaped=False
+        nested,
+        role=role,
+        hidden=hidden,
+        declared=declared,
+        seeded=seeded,
+        shaped=False,
+        inherited=spec.json_schema_registry,
     )
 
 
@@ -1183,7 +1197,9 @@ def _names(parameters: Sequence[Parameter]) -> frozenset[str]:
     return frozenset(parameter.name for parameter in parameters)
 
 
-def _reflected(fn: Callable[..., Any], *, hidden: frozenset[str]) -> list[Parameter]:
+def _reflected(
+    fn: Callable[..., Any], *, hidden: frozenset[str], registry: JsonSchemaRegistry | None = None
+) -> list[Parameter]:
     """``fn``'s keyword parameters and ``Unpack``-ed keys, as Parameters, less the pool's and the hidden."""
     skip = _NOT_ARGUMENTS | hidden
     hints = callable_type_hints(fn)
@@ -1194,7 +1210,7 @@ def _reflected(fn: Callable[..., Any], *, hidden: frozenset[str]) -> list[Parame
             if typed_dict is not None:
                 fields, required = typed_dict_input(typed_dict)
                 reflected.extend(
-                    _parameter(key, hint, required=key in required)
+                    _parameter(key, hint, required=key in required, registry=registry)
                     for key, hint in fields.items()
                     if key not in skip
                 )
@@ -1210,13 +1226,28 @@ def _reflected(fn: Callable[..., Any], *, hidden: frozenset[str]) -> list[Parame
         ):
             continue
         default = UNSET if parameter.default is inspect.Parameter.empty else parameter.default
-        reflected.append(_parameter(name, hints.get(name, Any), required=False, default=default))
+        reflected.append(
+            _parameter(
+                name, hints.get(name, Any), required=False, default=default, registry=registry
+            )
+        )
     return reflected
 
 
-def _parameter(name: str, hint: Any, *, required: bool, default: Any = UNSET) -> Parameter:
+def _parameter(
+    name: str,
+    hint: Any,
+    *,
+    required: bool,
+    default: Any = UNSET,
+    registry: JsonSchemaRegistry | None = None,
+) -> Parameter:
     underlying, marked_required, _hidden = read_schema_markers(hint)
-    kind, nullable, extra = _shape(underlying)
+    kind, nullable, extra = _shape(underlying, registry)
+    # An author's ``InputDescription`` is this parameter's, so it wins over a
+    # registry rule's ``description`` for its type
+    # (test_a_selector_spec_s_reads_take_its_python_type_rules, ``described``).
+    registered_help = extra.pop("help", None)
     return Parameter(
         name,
         kind,
@@ -1227,22 +1258,34 @@ def _parameter(name: str, hint: Any, *, required: bool, default: Any = UNSET) ->
         # is not one the kernel may fill: it lets a required parameter with a
         # default go absent (test_a_none_defaulted_required_key_is_enforced).
         default=UNSET if marked_required else default,
-        help=read_input_description(hint),
+        help=read_input_description(hint) or registered_help,
         **extra,
     )
 
 
-def _shape(annotation: Any) -> tuple[str, bool, dict[str, Any]]:
-    """``(type, nullable, extra)`` for an annotation; ``any`` for what no Parameter type says."""
+def _shape(
+    annotation: Any, registry: JsonSchemaRegistry | None = None
+) -> tuple[str, bool, dict[str, Any]]:
+    """``(type, nullable, extra)`` for an annotation; ``any`` for what no Parameter type says.
+
+    A ``registry.python_types`` rule matches by identity, before any built-in
+    reading and inside an ``Optional`` or a list, as drfs' annotation walk
+    matches it, and its fragment is split by ``fragment_keywords``
+    (test_a_selector_spec_s_reads_take_its_python_type_rules).
+    """
     origin = get_origin(annotation)
     args = get_args(annotation)
     if origin is Annotated:
-        return _shape(args[0])
+        return _shape(args[0], registry)
+    for rule_type, fragment in registry.python_types if registry is not None else ():
+        if annotation is rule_type:
+            declared = fragment_keywords(fragment, output=False)
+            return declared.pop("type"), declared.pop("nullable", False), declared
     if origin in (typing.Union, types.UnionType):
         members = [arg for arg in args if arg is not type(None)]
         nullable = len(members) < len(args)
         if len(members) == 1:
-            kind, _, extra = _shape(members[0])
+            kind, _, extra = _shape(members[0], registry)
             return kind, nullable, extra
         return "any", nullable, {}
     for python_type, kind, fmt in _SCALARS:
@@ -1257,7 +1300,7 @@ def _shape(annotation: Any) -> tuple[str, bool, dict[str, Any]]:
     # ``dict``) and ``test_a_selector_s_named_parameters_are_its_reads``
     # (``list[str]``, ``dict[str, int]``) each hold one side.
     if origin in _ARRAYS or annotation in _ARRAYS:
-        element = _shape(args[0])[0] if len(args) == 1 else "any"
+        element = _shape(args[0], registry)[0] if len(args) == 1 else "any"
         # An array declaring no ``items`` takes any element, which is the one
         # spelling the kernel accepts for that.
         return "array", False, ({"items": element} if element != "any" else {})
