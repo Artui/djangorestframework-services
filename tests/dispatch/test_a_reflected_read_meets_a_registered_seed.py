@@ -252,7 +252,7 @@ def test_a_spread_service_beside_a_lookup_reading_a_seed_answers_as_before(
 def test_a_spread_service_naming_a_seed_refuses_a_value_the_caller_sent_as_before(
     policy: UnknownArguments,
 ) -> None:
-    """Pinned as it answers: the edge hands the caller's ``tenant`` on as an author value."""
+    """Pinned as 0.59.0 on kernel 0.14.0 answers it, which is not a refusal worded for the caller."""
     seen: dict[str, Any] = {}
 
     def tag(*, instance: Post, title: str, tenant: str) -> dict[str, str]:

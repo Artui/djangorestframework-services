@@ -856,10 +856,11 @@ def server_input(
     ``many`` call), and wins over the view hook's value on a shared key, as it
     did on main. The edge merges the answer over the caller's arguments, so a
     server key always beats the client's. It is the edge's rather than the
-    kernel's so that it runs once: the dispatched variant carries none
-    (test_the_input_data_provider_runs_once_per_call,
-    test_input_data_applies_off_http). A key the provider answers ``UNSET`` is
-    declined, as main read it.
+    kernel's because the kernel sees none of the view's ``input_data`` hooks,
+    which the provider is layered over (test_input_data_three_tier_chain); the
+    dispatched variant carries none, so the provider runs once
+    (test_the_input_data_provider_runs_once_per_call). A key the provider
+    answers ``UNSET`` is declined, as main read it.
     """
     merged: dict[str, Any] = dict(hooks.input_data or {})
     provider = spec.input_data

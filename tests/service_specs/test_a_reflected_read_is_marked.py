@@ -90,3 +90,38 @@ def test_a_declared_read_is_not_marked_and_replaces_the_reflected_one(declared: 
 
     assert reads["tenant"].reflected is False
     assert reads["page"].reflected is True
+
+
+# --- ``as_kernel_spec(seeded=)`` still compiles a name out of the reads ---------------------
+
+
+def test_seeded_compiles_a_name_out_of_a_selector_s_reads_a_marked_read_stays() -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_selector, permission_classes=[])
+
+    marked = kernel_spec(spec)
+    compiled_out = as_kernel_spec(spec, seeded=frozenset({"tenant"}))
+
+    assert "tenant" in _named(marked.reads)
+    assert "tenant" not in _named(compiled_out.reads)
+    assert "page" in _named(compiled_out.reads)
+
+
+def test_seeded_compiles_a_name_out_of_a_target_lookup_s_reads() -> None:
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_lookup),
+        permission_classes=[],
+    )
+    lookup = as_kernel_spec(spec, seeded=frozenset({"tenant"})).target_selector_spec()
+    assert lookup is not None
+
+    assert set(_named(lookup.reads)) == {"pk"}
+
+
+def test_seeded_compiles_a_name_out_of_a_spread_service_s_reads() -> None:
+    """Without the union at the spread seat the name stays a read: this fails."""
+    spec = ServiceSpec(service=_service, permission_classes=[], atomic=False)
+
+    compiled_out = as_kernel_spec(spec, spread=True, seeded=frozenset({"tenant"}))
+
+    assert set(_named(compiled_out.reads)) == {"title"}
