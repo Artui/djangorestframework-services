@@ -40,7 +40,8 @@ class QueryParam:
     - ``type`` — the JSON-Schema type advertised to the caller (``"string"`` by default;
       ``"integer"`` / ``"number"`` / ``"boolean"`` / ``"array"`` …).
     - ``description`` — optional help text shown to the caller.
-    - ``default`` — value seeded when the caller omits the argument; also surfaced
+    - ``default`` — the value a transport that seeds defaults supplies when the
+      caller omits the argument (drfs reports it and does not fill it in); also surfaced
       as the schema ``default``. Left at ``UNSET`` there is no default, and the
       schema carries no ``default`` key; ``default=None`` is a real declaration
       ("defaults to null") and is surfaced like any other value. Read it with
@@ -57,7 +58,14 @@ class QueryParam:
     omitting one is legitimate by construction, and the spec runs correctly
     without it. Requiredness belongs to inputs the spec cannot run without, which
     is [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and the
-    ``InputRequired`` marker.
+    ``InputRequired`` marker. In the compiled parameters
+    (``kernel_spec(spec).parameters()``) and the kernel's input schema
+    (``spec_input_schema``), a param naming a parameter with no default of a
+    callable of the call (the selector, a precondition, the service, a target
+    lookup), or one marked ``InputRequired``, is still required, as that
+    parameter is: the read declares where the value comes from, not that the
+    callable can run without it. Only a ``default`` here, or on the parameter,
+    makes it optional there. ``spec_to_json_schema`` is not changed by this.
     """
 
     name: str

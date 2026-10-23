@@ -40,7 +40,12 @@ list_tasks = SelectorSpec(
   callable of the call takes by name compiles to the kernel spec's `shapes`
   rather than its `reads`, and reaches the presenter on
   `PresentationContext.shapes` (see [`QueryParam`](types.md)). An entry of the
-  same name as a selector parameter replaces the reflected one. A sequence is
+  same name as a selector parameter replaces the reflected one and keeps what
+  that parameter requires: a read naming a parameter with no default, of the
+  selector, a target lookup, the service or a precondition, is required too,
+  unless the read declares a `default`; the compiled parameters and the kernel's
+  input schema say so, and a parameter marked `InputRequired` stays required
+  under the read. A sequence is
   required, and a name may be declared once. A selector taking a bare
   `**kwargs` is not handed a route capture no callable declares: declare it
   here or as a keyword parameter. A `UrlKwarg`'s `type` has to be the one the

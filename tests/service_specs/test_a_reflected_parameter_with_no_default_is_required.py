@@ -60,8 +60,10 @@ from rest_framework_services.service_specs.as_kernel_spec import (
     as_kernel_spec,
     required_for_having_no_default,
 )
+from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.types.input_required import InputRequired
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -139,6 +141,13 @@ def _open(**kwargs: Any) -> dict[str, Any]:
 
 
 def _wants_reason(*, reason: str) -> None: ...
+
+
+def _wants_status(*, status: str) -> None: ...
+
+
+def _open_selector(*, page: int = 1) -> dict[str, Any]:
+    return {"page": page}
 
 
 def _status_provider() -> _Status:
@@ -448,12 +457,81 @@ class TestARowHandedIn:
 
         assert edge(self._spec(), params={}, instance=post).value == "handed"
 
+    @_CORES
+    @pytest.mark.parametrize("declare", [QueryParam, UrlKwarg], ids=["query-param", "url-kwarg"])
+    @pytest.mark.parametrize("on", ["spec", "lookup"])
+    def test_the_edge_answers_it_without_a_key_the_spec_declares(
+        self, edge: Any, declare: Any, on: str
+    ) -> None:
+        """A declared read of the lookup's key says nothing of requiredness, so the edge relaxes it too.
+
+        Held per seat of the read: the spec's own ``reads`` and the lookup's
+        (``_saying_required`` at each of its sites).
+        """
+        post = Post.objects.create(title="handed")
+        spec = ServiceSpec(
+            service=_untouched,
+            permission_classes=[AllowAny],
+            reads=[declare("pk")] if on == "spec" else [],
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_lookup,
+                reads=[declare("pk")] if on == "lookup" else [],
+            ),
+        )
+
+        assert edge(spec, params={}, instance=post).value == "handed"
+
     def test_the_kernel_s_route_still_asks_for_the_key(self) -> None:
         post = Post.objects.create(title="handed")
 
         with pytest.raises(KernelInvalidArguments) as refused:
             dispatch(self._spec(), principal=AnonymousUser(), arguments={}, target=post)
         assert set(refused.value.detail) == {"pk"}
+
+
+class TestTheEdgeRefusesAMissingReadAsBefore:
+    """A call leaving out a declared read the callable needs is refused as it was, now the read is required."""
+
+    @_CORES
+    @pytest.mark.parametrize(
+        ("spec", "name"),
+        [
+            pytest.param(
+                SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=_open_selector,
+                    permission_classes=[AllowAny],
+                    reads=[QueryParam("status")],
+                    preconditions=[_wants_status],
+                ),
+                "status",
+                id="selector-precondition",
+            ),
+            pytest.param(
+                ServiceSpec(
+                    service=_spread, permission_classes=[AllowAny], reads=[QueryParam("note")]
+                ),
+                "note",
+                id="auto-service",
+            ),
+            pytest.param(
+                ServiceSpec(
+                    service=_open,
+                    permission_classes=[AllowAny],
+                    reads=[QueryParam("reason")],
+                    preconditions=[_wants_reason],
+                ),
+                "reason",
+                id="auto-service-precondition",
+            ),
+        ],
+    )
+    def test_the_key_is_asked_for_in_the_drfs_words(self, edge: Any, spec: Any, name: str) -> None:
+        with pytest.raises(InvalidArguments) as refused:
+            edge(spec, params={})
+
+        assert set(refused.value.detail) == {name}
 
 
 class _Kwargs(TypedDict):
@@ -467,6 +545,13 @@ def _keyed(**kwargs: Unpack[_Kwargs]) -> Any:
 
 def _marked(*, pk: Annotated[int, InputRequired()]) -> Any:
     return None
+
+
+def _open_selector_taking_pk(*, pk: Annotated[int, InputRequired()]) -> Any:
+    return None
+
+
+def _wants_pk(*, pk: int) -> None: ...
 
 
 def _defaulted(*, pk: int = 0, status: str) -> Any:
@@ -543,7 +628,96 @@ def _lookup_s(spec: Any, **options: Any) -> Any:
             True,
             id="spread-precondition",
         ),
+        # A declared read of the name that says nothing of requiredness: the
+        # parameter has no default, so the rule alone requires it, and the edge
+        # relaxes it as it does with no read declared.
+        pytest.param(
+            lambda: kernel_spec(_selector(_by_status, reads=[UrlKwarg("status")])).reads,
+            lambda: _own(_selector(_by_status, reads=[UrlKwarg("status")])),
+            "status",
+            True,
+            id="selector-declared-without-required",
+        ),
+        pytest.param(
+            lambda: (
+                as_kernel_spec(
+                    _spread_service(_spread, reads=[QueryParam("note")]), spread=True
+                ).reads
+            ),
+            lambda: _own(_spread_service(_spread, reads=[QueryParam("note")]), spread=True),
+            "note",
+            True,
+            id="spread-service-declared-without-required",
+        ),
+        pytest.param(
+            lambda: _target_reads(
+                kernel_spec(_lookup_service("instance", _lookup, reads=[QueryParam("pk")]))
+            ),
+            lambda: _lookup_s(_lookup_service("instance", _lookup, reads=[QueryParam("pk")])),
+            "pk",
+            True,
+            id="lookup-declared-by-the-spec-without-required",
+        ),
+        pytest.param(
+            lambda: _target_reads(
+                kernel_spec(_lookup_service("collection", _lookup, lookup_reads=[QueryParam("pk")]))
+            ),
+            lambda: _lookup_s(
+                _lookup_service("collection", _lookup, lookup_reads=[QueryParam("pk")])
+            ),
+            "pk",
+            True,
+            id="lookup-declared-by-the-lookup-without-required",
+        ),
+        pytest.param(
+            lambda: (
+                kernel_spec(
+                    _selector(
+                        _open_selector, reads=[QueryParam("status")], preconditions=[_wants_status]
+                    )
+                ).reads
+            ),
+            lambda: _own(
+                _selector(
+                    _open_selector, reads=[QueryParam("status")], preconditions=[_wants_status]
+                )
+            ),
+            "status",
+            True,
+            id="selector-precondition-declared-without-required",
+        ),
+        pytest.param(
+            lambda: kernel_spec(_spread_service(_spread, reads=[QueryParam("note")])).reads,
+            lambda: _own(_spread_service(_spread, reads=[QueryParam("note")])),
+            "note",
+            True,
+            id="auto-service-declared-without-required",
+        ),
+        pytest.param(
+            lambda: (
+                kernel_spec(
+                    _spread_service(
+                        _open, reads=[QueryParam("reason")], preconditions=[_wants_reason]
+                    )
+                ).reads
+            ),
+            lambda: _own(
+                _spread_service(_open, reads=[QueryParam("reason")], preconditions=[_wants_reason])
+            ),
+            "reason",
+            True,
+            id="auto-service-precondition-declared-without-required",
+        ),
         # Kept: required for a reason of its own.
+        pytest.param(
+            lambda: (
+                kernel_spec(_selector(_open_selector_taking_pk, preconditions=[_wants_pk])).reads
+            ),
+            lambda: _own(_selector(_open_selector_taking_pk, preconditions=[_wants_pk])),
+            "pk",
+            False,
+            id="input-required-beside-a-precondition",
+        ),
         pytest.param(
             lambda: kernel_spec(_selector(_marked)).reads,
             lambda: _own(_selector(_marked)),

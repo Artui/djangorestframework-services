@@ -51,7 +51,9 @@ class UrlKwarg:
         type: The JSON-Schema type advertised to the caller — ``"string"`` by
             default, or ``"integer"`` / ``"number"`` / ``"boolean"`` …
         description: Optional help text shown to the caller.
-        default: Value seeded when the caller omits the argument; also surfaced as
+        default: The value a transport that seeds defaults supplies when the
+            caller omits the argument (drfs reports it and does not fill it in);
+            also surfaced as
             the schema ``default``. Left at ``UNSET`` there is no default and the
             schema carries no ``default`` key; ``default=None`` is a real
             declaration ("defaults to null") and is surfaced like any other
@@ -65,7 +67,14 @@ class UrlKwarg:
             registered-declaration counterpart of
             ``InputRequired``, which does the same job
             for a key the callable's own ``TypedDict`` declares; both end up in the
-            schema's ``required``.
+            schema's ``required``. ``required=False``, the default, does not make
+            optional a parameter of the callable that has no default or is
+            marked ``InputRequired``: in the compiled parameters
+            (``kernel_spec(spec).parameters()``) and the kernel's input schema
+            (``spec_input_schema``) that parameter is required whatever the read
+            says, as it is with no read declared, and only a ``default`` here, or
+            on the parameter, makes it optional there. ``spec_to_json_schema`` is
+            not changed by this.
     """
 
     name: str

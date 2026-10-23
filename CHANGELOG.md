@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] — 2026-10-23
+
+### Fixed
+- **A declared `UrlKwarg` or `QueryParam` keeps the requiredness of the callable
+  parameter it names.** A read naming a parameter with no default of a selector,
+  a target lookup, a service (under any binding) or either's `preconditions` used
+  to compile optional, so the compiled parameters
+  (`kernel_spec(spec).parameters()`) and the kernel's input schema
+  (`spec_input_schema`) did not ask the caller for a value `dispatch` refused the
+  call without. Such a read is now `required` in both, as it is with no read
+  declared. A read that declares a `default`, or names a parameter that has one,
+  stays optional in them (drfs reports the default there and does not fill it in
+  itself), and `UrlKwarg(required=True)` requires it either way. The rule is about
+  those two surfaces; `spec_to_json_schema` is unchanged. No parameter is added.
+- **A parameter marked `InputRequired` stays required under a declared read, even
+  with a `None` default**, as it is with no read declared. A selector taking
+  `ticket: Annotated[str | None, InputRequired] = None` beside
+  `QueryParam("ticket")` used to be served `None` for a call leaving it out; that
+  call is now refused with `InvalidArguments` (a live `SelectorListView` answers
+  `400` where it answered `200`). Drop the marker if the parameter is optional.
+  A target lookup the DRF edge runs for a call that hands no row is answered as
+  before: the edge's variants relax its keys, as they must for a row a view hands
+  in (below).
+- **A required or `InputRequired` key of an `Unpack`-ed `TypedDict` under a plain
+  declared read is refused when left out.** It used to compile optional and the
+  callable raised `KeyError` (a live selector view answered a server error); it
+  now answers `InvalidArguments` (`400`).
+- The DRF edge still answers a row a view hands in without the target lookup's
+  key, for a read declared on the spec or on the lookup, including a key the
+  lookup marks `InputRequired` or takes as a `TypedDict` key: the lookup never
+  runs for that row. A selector taking a name plain beside a precondition that
+  marks it `InputRequired` now keeps it required on the edge's variants too; the
+  answer a caller sees is unchanged.
+
 ## [0.60.0] — 2026-10-23
 
 ### Changed
@@ -5580,7 +5614,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.61.0...HEAD
+[0.61.0]: https://github.com/Artui/djangorestframework-services/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/djangorestframework-services/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/Artui/djangorestframework-services/compare/v0.57.0...v0.58.0
