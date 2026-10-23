@@ -492,8 +492,10 @@ spec and asserts the selector is handed it both ways, beside an off-HTTP
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's
 `required` list, and they differ only in where the key is declared. A read of
-the name of a callable's parameter that has no default is required without it,
-since the callable cannot run otherwise, unless the read declares a `default`. A transport
+the name of a parameter that has no default, of the selector, a target lookup,
+the service or a precondition, is required without `required=True`, since the
+callable cannot run otherwise; only a `default` on the read, or on the
+parameter, makes it optional. A transport
 adapter that keeps its own registration and routes the value to
 `build_offline_context(kwargs=...)` itself, as earlier releases needed, still
 reaches a provider reading `view.kwargs`; the value is an argument only where

@@ -48,8 +48,30 @@ def _renamed(*, note: str) -> Any:
     return note
 
 
-def _selector(selector: Callable[..., Any], *reads: UrlKwarg | QueryParam) -> Any:
-    return SelectorSpec(selector=selector, kind=SelectorKind.LIST, reads=reads)
+def _selector(
+    selector: Callable[..., Any],
+    *reads: UrlKwarg | QueryParam,
+    preconditions: tuple[Callable[..., Any], ...] = (),
+) -> Any:
+    return SelectorSpec(
+        selector=selector, kind=SelectorKind.LIST, reads=reads, preconditions=preconditions
+    )
+
+
+def _a_project_check(user: Any, project_pk: int) -> None:
+    return None
+
+
+def _a_project_check_or_all(user: Any, project_pk: int = 0) -> None:
+    return None
+
+
+def _a_note_check(*, note: str) -> None:
+    return None
+
+
+def _no_params(user: Any) -> list[Any]:
+    return []
 
 
 def _service(
@@ -70,6 +92,28 @@ def _service(
 
 def _spread(*reads: UrlKwarg | QueryParam) -> Any:
     return ServiceSpec(service=_renamed, permission_classes=[AllowAny], reads=reads)
+
+
+def _auto(*reads: UrlKwarg | QueryParam, preconditions: tuple[Callable[..., Any], ...] = ()) -> Any:
+    """A service dispatched under ``AUTO``, which takes only what its reads declare."""
+    return ServiceSpec(
+        service=_renamed, permission_classes=[AllowAny], reads=reads, preconditions=preconditions
+    )
+
+
+def _auto_without_a_parameter(
+    *reads: UrlKwarg | QueryParam, preconditions: tuple[Callable[..., Any], ...] = ()
+) -> Any:
+    return ServiceSpec(
+        service=lambda **kwargs: None,
+        permission_classes=[AllowAny],
+        reads=reads,
+        preconditions=preconditions,
+    )
+
+
+def _compiled(spec: Any) -> Any:
+    return kernel_spec(spec)
 
 
 def _own(spec: Any) -> Any:
@@ -116,6 +160,37 @@ _SEATS = [
         lambda: _spread_compiled(_spread(QueryParam("note"))),
         "note",
         id="spread-service",
+    ),
+    pytest.param(
+        lambda: _compiled(_auto(QueryParam("note"))),
+        "note",
+        id="service-under-auto",
+    ),
+    pytest.param(
+        lambda: _compiled(_auto(UrlKwarg("note"))),
+        "note",
+        id="service-under-auto-url-kwarg",
+    ),
+    pytest.param(
+        lambda: _compiled(
+            _selector(_no_params, QueryParam("project_pk"), preconditions=(_a_project_check,))
+        ),
+        "project_pk",
+        id="selector-precondition",
+    ),
+    pytest.param(
+        lambda: _compiled(
+            _auto_without_a_parameter(QueryParam("note"), preconditions=(_a_note_check,))
+        ),
+        "note",
+        id="service-precondition-under-auto",
+    ),
+    pytest.param(
+        lambda: _spread_compiled(
+            _auto_without_a_parameter(QueryParam("note"), preconditions=(_a_note_check,))
+        ),
+        "note",
+        id="service-precondition-under-spread",
     ),
 ]
 
@@ -188,6 +263,63 @@ def test_a_parameter_with_a_default_stays_optional_under_a_read(
 
     assert built.parameters().get(name).required is False
     assert name not in spec_input_schema(built).get("required", [])
+
+
+# The new seats: a parameter with a default of its own stays optional under a
+# read, and so does one the read gives a default.
+@pytest.mark.parametrize(
+    ("compiled", "name"),
+    [
+        pytest.param(
+            lambda: _compiled(
+                _selector(
+                    _no_params, QueryParam("project_pk"), preconditions=(_a_project_check_or_all,)
+                )
+            ),
+            "project_pk",
+            id="selector-precondition-with-a-default",
+        ),
+        pytest.param(
+            lambda: _compiled(
+                _selector(
+                    _no_params,
+                    QueryParam("project_pk", default="7"),
+                    preconditions=(_a_project_check,),
+                )
+            ),
+            "project_pk",
+            id="selector-precondition-read-with-a-default",
+        ),
+        pytest.param(
+            lambda: _compiled(_auto(QueryParam("note", default="n"))),
+            "note",
+            id="service-under-auto-read-with-a-default",
+        ),
+        pytest.param(
+            lambda: _compiled(
+                _auto_without_a_parameter(
+                    QueryParam("note", default="n"), preconditions=(_a_note_check,)
+                )
+            ),
+            "note",
+            id="service-precondition-read-with-a-default",
+        ),
+    ],
+)
+def test_the_other_seats_keep_a_default_optional(compiled: Callable[[], Any], name: str) -> None:
+    built = compiled()
+
+    assert built.parameters().get(name).required is False
+    assert name not in spec_input_schema(built).get("required", [])
+
+
+# A read no callable of the call names is not made required by another's parameter.
+def test_a_read_no_callable_takes_by_name_is_not_made_required() -> None:
+    built = _compiled(_selector(_no_params, QueryParam("other"), preconditions=(_a_project_check,)))
+
+    assert (
+        built.parameters().get("other") is None or built.parameters().get("other").required is False
+    )
 
 
 # Kills the ``read.required`` operand: the parameter is optional by itself,

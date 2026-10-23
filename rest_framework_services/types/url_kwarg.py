@@ -65,7 +65,11 @@ class UrlKwarg:
             registered-declaration counterpart of
             ``InputRequired``, which does the same job
             for a key the callable's own ``TypedDict`` declares; both end up in the
-            schema's ``required``.
+            schema's ``required``. ``required=False``, the default, does not make
+            optional a parameter of the callable that has no default: that
+            parameter is required whatever the read says, as it is with no read
+            declared, and only a ``default`` here, or on the parameter, makes it
+            optional.
     """
 
     name: str
