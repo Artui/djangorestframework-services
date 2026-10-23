@@ -167,7 +167,13 @@ def test_a_typed_provider_still_names_the_keys_it_fills() -> None:
     assert provider_keys(translating_drf_refusals(_scope)).filled == {"tenant"}  # ty: ignore[unresolved-attribute]
 
 
-@pytest.mark.parametrize("fn", [_create, _acreate], ids=["sync", "async"])
+class _Bound:
+    def create(self, *, title: str, status: str, tenant: str) -> None: ...
+
+
+@pytest.mark.parametrize(
+    "fn", [_create, _acreate, _Bound().create], ids=["sync", "async", "method"]
+)
 def test_it_reports_what_it_wraps(fn: Callable[..., Any]) -> None:
     wrapped = translating_drf_refusals(fn)
 
@@ -296,14 +302,21 @@ def test_a_decorated_function_is_still_wrapped_by_the_translator() -> None:
 class _Callable:
     """The class's words, which a partial or an object has no function to read."""
 
-    note = "kept on the object"
+    def __init__(self) -> None:
+        self.note = "kept on the object"
 
     def __call__(self, *, title: str = "") -> None: ...
 
 
+def _a_partial_with_an_attribute() -> Callable[..., Any]:
+    partial = functools.partial(_create, title="t")
+    partial.note = "kept on the partial"  # ty: ignore[unresolved-attribute]
+    return partial
+
+
 @pytest.mark.parametrize(
     "author",
-    [functools.partial(_create, title="t"), _Callable()],
+    [_a_partial_with_an_attribute(), _Callable()],
     ids=["partial", "callable-object"],
 )
 def test_a_partial_or_a_callable_object_gets_no_docstring_or_attributes(
@@ -312,8 +325,13 @@ def test_a_partial_or_a_callable_object_gets_no_docstring_or_attributes(
     """``inspect.isfunction`` is how a reader tells a function's words from a class's.
 
     Copying the class's docstring would make ``functools.partial`` or the
-    callable's class read as the description of this one callable.
+    callable's class read as the description of this one callable, and copying
+    the attributes would stamp the wrapper with what belongs to the object.
+    Each is held apart: the docstring by ``__doc__``, the attributes by a
+    ``note`` the author carries on the instance.
     """
+    assert author.note  # ty: ignore[unresolved-attribute]
+
     wrapped = translating_drf_refusals(author)
 
     assert wrapped.__doc__ is None
