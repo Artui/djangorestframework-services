@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.60.0] — 2026-10-23
+
 ### Changed
 - **Every read taken off a signature is a `reflected` kernel `Parameter`**, on
   the default compile too: a selector's parameters, a target lookup's, a spread
@@ -19,8 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `reflected=True`, so a test asserting `kernel_spec(spec).reads == (...)`
   needs the flag.
 - `dispatch_spec` and `adispatch_spec` no longer compile a seed's name out of
-  the reads for each call; the kernel fills it. HTTP answers are unchanged. `as_kernel_spec(seeded=)`
-  is unchanged.
+  the reads for each call; the kernel fills it. HTTP answers are unchanged.
+  `as_kernel_spec(seeded=)` is unchanged.
 - Requires `django-service-specs>=0.15.0`, whose dispatch fills a reflected
   read from a seed and lets an input serializer field named like a registered
   seed validate into `data` while the seed keeps its own value.
@@ -5578,7 +5580,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.60.0...HEAD
+[0.60.0]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/djangorestframework-services/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/Artui/djangorestframework-services/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/Artui/djangorestframework-services/compare/v0.56.1...v0.57.0
