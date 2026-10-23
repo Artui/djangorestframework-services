@@ -9248,7 +9248,9 @@ default, or <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</co
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Value seeded when the caller omits the argument; also surfaced as
+                <p>The value a transport that seeds defaults supplies when the
+caller omits the argument (drfs reports it and does not fill it in);
+also surfaced as
 the schema <code>default</code>. Left at <code>UNSET</code> there is no default and the
 schema carries no <code>default</code> key; <code>default=None</code> is a real
 declaration ("defaults to null") and is surfaced like any other
@@ -9272,7 +9274,14 @@ told up front instead of failing mid-dispatch. Setting both
 registered-declaration counterpart of
 <code>InputRequired</code>, which does the same job
 for a key the callable's own <code>TypedDict</code> declares; both end up in the
-schema's <code>required</code>.</p>
+schema's <code>required</code>. <code>required=False</code>, the default, does not make
+optional a parameter of the callable that has no default or is
+marked <code>InputRequired</code>: in the compiled parameters
+(<code>kernel_spec(spec).parameters()</code>) and the kernel's input schema
+(<code>spec_input_schema</code>) that parameter is required whatever the read
+says, as it is with no read declared, and only a <code>default</code> here, or
+on the parameter, makes it optional there. <code>spec_to_json_schema</code> is
+not changed by this.</p>
               </div>
             </td>
           </tr>
@@ -9421,7 +9430,8 @@ declaration whichever transport carries it. Pair it with
 <li><code>type</code> — the JSON-Schema type advertised to the caller (<code>"string"</code> by default;
   <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> / <code>"array"</code> …).</li>
 <li><code>description</code> — optional help text shown to the caller.</li>
-<li><code>default</code> — value seeded when the caller omits the argument; also surfaced
+<li><code>default</code> — the value a transport that seeds defaults supplies when the
+  caller omits the argument (drfs reports it and does not fill it in); also surfaced
   as the schema <code>default</code>. Left at <code>UNSET</code> there is no default, and the
   schema carries no <code>default</code> key; <code>default=None</code> is a real declaration
   ("defaults to null") and is surfaced like any other value. Read it with
@@ -9442,7 +9452,14 @@ is <a class="autorefs autorefs-internal" title="UrlKwarg
   
       dataclass
   " href="#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a> and the
-<code>InputRequired</code> marker.</p>
+<code>InputRequired</code> marker. In the compiled parameters
+(<code>kernel_spec(spec).parameters()</code>) and the kernel's input schema
+(<code>spec_input_schema</code>), a param naming a parameter with no default of a
+callable of the call (the selector, a precondition, the service, a target
+lookup), or one marked <code>InputRequired</code>, is still required, as that
+parameter is: the read declares where the value comes from, not that the
+callable can run without it. Only a <code>default</code> here, or on the parameter,
+makes it optional there. <code>spec_to_json_schema</code> is not changed by this.</p>
 
 
 
