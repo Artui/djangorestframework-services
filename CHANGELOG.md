@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] — 2026-10-23
+
 ### Changed
 - **On the kernel's route, an author's DRF refusals reach the caller as the
   kernel's classes.** Under `dispatch(kernel_spec(spec))`, DRF's `ValidationError`,
@@ -5648,7 +5650,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.61.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.62.0...HEAD
+[0.62.0]: https://github.com/Artui/djangorestframework-services/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/Artui/djangorestframework-services/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/djangorestframework-services/compare/v0.58.0...v0.59.0
