@@ -320,3 +320,28 @@ def test_a_permission_class_s_raised_refusal_answers_as_on_0_61_0(
 
     assert (response.status_code, response.content) == (status, body)
     assert response.get("WWW-Authenticate") == challenge
+
+
+@_CORES
+@pytest.mark.parametrize(
+    "error",
+    [ValidationError("whole"), PermissionDenied("nope"), NotAuthenticated()],
+    ids=["validation-error", "permission-denied", "not-authenticated"],
+)
+@pytest.mark.parametrize("seat", ["instance_lookup", "output_selector"])
+def test_a_nested_selector_s_refusal_is_the_exception_the_author_raised(
+    dispatch: Any, error: Exception, seat: str
+) -> None:
+    nested = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_raising(error))
+    spec = (
+        ServiceSpec(service=lambda **_: None, instance_selector_spec=nested)
+        if seat == "instance_lookup"
+        else ServiceSpec(
+            service=lambda **_: Post.objects.create(title="t"), output_selector_spec=nested
+        )
+    )
+
+    with pytest.raises(type(error)) as excinfo:
+        dispatch(spec, params={})
+
+    assert excinfo.value is error

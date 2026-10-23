@@ -110,6 +110,18 @@ def _service_spec(seat: str, refuse: Callable[..., Any]) -> ServiceSpec[Any, Any
             input_serializer=_TitleInput,
             input_data=refuse,
         )
+    if seat == "instance_lookup":
+        return ServiceSpec(
+            permission_classes=_OPEN,
+            service=lambda **_: None,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=refuse),
+        )
+    if seat == "output_selector":
+        return ServiceSpec(
+            permission_classes=_OPEN,
+            service=lambda **_: Post.objects.create(title="t"),
+            output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=refuse),
+        )
     assert seat == "output_extend_queryset"
     return ServiceSpec(
         permission_classes=_OPEN,
@@ -149,7 +161,15 @@ def _selector_spec(seat: str, refuse: Callable[..., Any]) -> SelectorSpec[Any, A
     )
 
 
-_SERVICE_SEATS = ["service", "precondition", "kwargs", "input_data", "output_extend_queryset"]
+_SERVICE_SEATS = [
+    "service",
+    "precondition",
+    "kwargs",
+    "input_data",
+    "instance_lookup",
+    "output_selector",
+    "output_extend_queryset",
+]
 _SELECTOR_SEATS = ["selector", "selector_precondition", "selector_kwargs", "extend_queryset"]
 
 
