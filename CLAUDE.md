@@ -150,7 +150,7 @@ Common patches you'll still need inside the package:
 | Python | 3.10 | 3.14 |
 | Django | 4.2 | 6.0 |
 | DRF | 3.14 | latest |
-| django-service-specs | 0.14.0 | latest |
+| django-service-specs | 0.15.0 | latest |
 
 Python 3.10 syntax / stdlib features are fair game (`match` statements, PEP 604 union syntax, etc.). Newer stdlib symbols (`Unpack`, `NotRequired`, `assert_type`, `TypeVar` with `default=...`, `override`) must be imported from `typing_extensions` so 3.10 / 3.11 keep working — `typing_extensions` re-exports them on every supported version. PEP 728's `TypedDict(..., extra_items=...)` is deliberately not used (no `typing_extensions` backport, blocks mypy). PEP 695 `class C[T]:` / `def f[T](...)` / `type X = …` syntax is also avoided — the package consistently uses `TypeVar(...)` + `Generic[T]`; don't "modernise" existing TypeVar uses on sight (the `UP040`, `UP046`, `UP047` ruff rules are ignored project-wide). CI runs the full Python × Django product, so any combo-specific bug surfaces fast.
 

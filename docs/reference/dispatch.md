@@ -635,11 +635,12 @@ is kept rather than swapped for `null_progress`.
 
 A parameter named like a seed the call registers is the seed's, on a selector,
 a target lookup or a spread service as on a service: the seed fills it, and a
-caller's value of the name is dropped rather than reaching it. `dispatch_spec`
-compiles that per call, from the `pool_seeds` it is handed. `kernel_spec(spec)`
-knows no project's seeds, so the kernel's own `dispatch`, handed the same seeds
-for that compiled spec, refuses the parameter as an argument meeting a seed. A
-name declared in the spec's `reads` is refused by both.
+caller's value of the name is dropped rather than reaching it. The compile
+marks every read it takes off a signature `reflected`, and the kernel fills a
+reflected read from a registered seed on any dispatch, so the kernel's own
+`dispatch` over `kernel_spec(spec)`, handed the same seeds, answers as
+`dispatch_spec` does. A name declared in the spec's `reads` is not reflected,
+and is refused by both when it meets a seed.
 
 `base_pool` is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. **If you are writing a transport adapter, build your pool by calling

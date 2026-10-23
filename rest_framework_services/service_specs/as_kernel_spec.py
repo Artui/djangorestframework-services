@@ -132,6 +132,12 @@ def as_kernel_spec(
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
       winning over a reflected one of its name, and a read unless it is a
       shape (below); one the target lookup reads joins the lookup's reads.
+      Every read taken off a signature is marked ``reflected`` and a declared
+      one is not, so the kernel fills a registered pool seed's name in the
+      former on every dispatch, ``kernel_spec(spec)``'s included, and still
+      refuses the latter as an argument meeting a seed
+      (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed,
+      test_a_declared_read_named_like_the_seed_is_still_refused_by_the_kernel).
     - ``shapes`` is each declared ``QueryParam`` of the top-level spec that no
       callable of the call takes by name: not the service or selector, a
       precondition, a target lookup, a ``kwargs`` or ``input_data`` provider,
@@ -173,11 +179,17 @@ def as_kernel_spec(
     ``reads`` read, so ``def destroy(*, instance, hard=False)`` is never handed
     a ``hard`` the request sent (see ``_takes_its_signature``).
 
-    ``seeded`` names the seeds a dispatch registers beyond the pool's own, which
-    the DRF edge compiles per call: a signature's parameter of such a name -
-    the selector's, a target lookup's, a spread service's - is no argument, and
-    the seed fills it, as it always filled a service's. A declared read of the
-    name stays one, which the kernel refuses as an argument meeting a seed.
+    ``seeded`` names seeds a dispatch registers beyond the pool's own, and
+    leaves a signature's parameter of such a name - the selector's, a target
+    lookup's, a spread service's - out of the compiled reads altogether
+    (test_seeded_compiles_a_name_out_of_a_selector_s_reads_a_marked_read_stays,
+    test_seeded_compiles_a_name_out_of_a_target_lookup_s_reads,
+    test_seeded_compiles_a_name_out_of_a_spread_service_s_reads). Without it
+    the parameter is a ``reflected`` read, which the kernel fills from a
+    registered seed of its name on every dispatch but which stays among the
+    compiled reads. The DRF edge no longer passes ``seeded``. A declared read
+    of the name stays one, which the kernel refuses as an argument meeting a
+    seed.
 
     **What the kernel refuses at construction is stripped or refused here**,
     naming the drfs field. Stripped, because drfs never read them: an output
@@ -239,7 +251,8 @@ def _service(
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
-        # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
+        # A seed of the call fills its name
+        # (test_seeded_compiles_a_name_out_of_a_spread_service_s_reads).
         _spread_signature(spec, hidden=hidden | seeded, open_ended=open_ended)
         if _takes_its_signature(spec, spread)
         else [],
@@ -404,7 +417,8 @@ def _selector(
     reads = Parameters()
     if role != "output":
         # A seed of the call fills its name, so it is no argument
-        # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
+        # (test_seeded_compiles_a_name_out_of_a_selector_s_reads_a_marked_read_stays,
+        # test_seeded_compiles_a_name_out_of_a_target_lookup_s_reads).
         reflected = _reflected(
             spec.selector, hidden=hidden | seeded, open_ended=open_ended, registry=registry
         )
@@ -1374,8 +1388,8 @@ def _reflected(
     (test_a_parameter_with_no_default_is_required), and one with a default is
     not (test_a_parameter_with_a_default_stays_optional). A server's value still
     reaches it - a route capture, a view hook's, a typed provider's, which the
-    kernel relaxes, or a seed's, which is no read at all
-    (``TestEachServerFillerAnswers``). A row handed in as ``target=`` does not:
+    kernel relaxes, or a registered seed's, which the kernel fills because
+    the read is marked ``reflected`` (``TestEachServerFillerAnswers``). A row handed in as ``target=`` does not:
     the kernel checks the arguments before it reads the target, so a caller
     handing one on the kernel's route still sends the lookup's key
     (test_the_kernel_s_route_still_asks_for_the_key). drfs' edge answers it
@@ -1455,6 +1469,15 @@ def _parameter(
         kind,
         required=required or marked_required,
         nullable=nullable,
+        # Every parameter built here is read off a signature, which is what the
+        # mark says: the kernel fills a registered seed's name in it on every
+        # dispatch, so a selector's ``tenant`` is the project's seed whether the
+        # DRF edge or any other transport dispatches it
+        # (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed). A
+        # declared ``UrlKwarg`` or ``QueryParam`` is built elsewhere and stays
+        # unmarked, so the kernel still refuses one named like a seed
+        # (test_a_declared_read_is_not_marked_and_replaces_the_reflected_one).
+        reflected=True,
         # ``InputRequired`` is the author saying the caller must send the key, so a
         # Python default beside it (``= None``, written so the signature is valid)
         # is not one the kernel may fill: it lets a required parameter with a

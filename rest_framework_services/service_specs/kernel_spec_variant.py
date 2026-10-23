@@ -22,7 +22,7 @@ from rest_framework_services.service_specs.as_kernel_spec import (
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import author_values
 
-_Variant = tuple[bool | None, bool, bool, bool, bool, bool, frozenset[str], frozenset[str]]
+_Variant = tuple[bool | None, bool, bool, bool, bool, bool, frozenset[str]]
 
 # id(source) -> (a weak reference to it, its variants by key). Keyed by identity
 # for the reason ``kernel_spec`` gives: a frozen dataclass compares by its fields,
@@ -42,7 +42,6 @@ def kernel_spec_variant(
     spread: bool = False,
     lenient: bool = False,
     excluded: frozenset[str] = frozenset(),
-    seeded: frozenset[str] = frozenset(),
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """``spec`` compiled as one request of the DRF edge dispatches it, once per variant.
 
@@ -77,11 +76,9 @@ def kernel_spec_variant(
       edge evaluates both itself and merges what they answer into the
       arguments, and a service spec's ``kwargs`` seat hands back the author
       values the edge call carries (``author_values``) instead.
-      The kernel relaxes a parameter only for a provider annotated to fill it,
-      so an untyped one, as drfs has always taken, would be refused as missing
-      before it ran; and a typed one declining a key it is annotated to fill
-      would reach the kernel's run as a ``KeyError``. Leaving either on would
-      also call the provider twice.
+      Leaving either on would call the provider a second time
+      (test_a_provider_runs_once_per_call,
+      test_the_input_data_provider_runs_once_per_call).
     - ``spread``: a service spec with no ``input_serializer`` takes the
       caller's values for its own parameters, as an explicit
       ``ArgumentBinding.SPREAD_AUTHOR_WINS`` dispatches it. Off by default, as
@@ -103,14 +100,9 @@ def kernel_spec_variant(
       for (``SerializerValidator(excluded=...)``): the edge compiles the
       names a seed of the call takes, so a serializer field of that name is
       the serializer's alone rather than a parameter the kernel refuses.
-    - ``seeded``: names a seed of the call fills, which no parameter read off
-      a signature takes - a selector's, a target lookup's, or a spread
-      service's (``as_kernel_spec(seeded=...)``) - so the seed fills a
-      parameter of that name rather than the kernel refusing it as an argument
-      meeting a seed, as a service's parameter always was.
     """
-    key: _Variant = (partial, unguarded, target, server_input, spread, lenient, excluded, seeded)
-    if key == (None, False, False, True, False, False, frozenset(), frozenset()):
+    key: _Variant = (partial, unguarded, target, server_input, spread, lenient, excluded)
+    if key == (None, False, False, True, False, False, frozenset()):
         return kernel_spec(spec)
     with _LOCK:
         held = _VARIANTS.get(id(spec))
@@ -122,7 +114,7 @@ def kernel_spec_variant(
         compiled = variants.get(key)
         if compiled is None:
             compiled = variants[key] = _compile(
-                spec, partial, unguarded, target, server_input, spread, lenient, excluded, seeded
+                spec, partial, unguarded, target, server_input, spread, lenient, excluded
             )
     return compiled
 
@@ -136,14 +128,13 @@ def _compile(
     spread: bool,
     lenient: bool,
     excluded: frozenset[str],
-    seeded: frozenset[str],
 ) -> KernelServiceSpec | KernelSelectorSpec:
     # One arc to coverage, so each operand is named: test_partial_compiles_the_request_s_flag
-    # fails without the first, test_one_spec_answers_each_binding_as_its_own
-    # without the second, and test_both_spec_kinds_read_the_seed without the third.
+    # fails without the first, and test_one_spec_answers_each_binding_as_its_own
+    # without the second.
     compiled = (
-        as_kernel_spec(spec, partial=partial, spread=spread, seeded=seeded)
-        if partial is not None or spread or seeded
+        as_kernel_spec(spec, partial=partial, spread=spread)
+        if partial is not None or spread
         else kernel_spec(spec)
     )
     changes = _relaxed(spec, compiled)
