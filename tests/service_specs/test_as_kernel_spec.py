@@ -7,6 +7,7 @@ classes as well as the function behind it.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import decimal
 import enum
@@ -622,10 +623,11 @@ class TestServiceFields:
         compiled = _kernel_service(spec)
 
         assert (compiled.atomic, compiled.idempotent, compiled.allow_none) == (False, True, True)
-        assert compiled.kwargs is kwargs
-        assert compiled.input_data is input_data
+        # Each runs inside the translator of its DRF refusals, wrapping the author's.
+        assert compiled.kwargs.__wrapped__ is kwargs
+        assert compiled.input_data.__wrapped__ is input_data
         assert compiled.progress_reporter is reporter
-        assert compiled.preconditions == (precondition,)
+        assert [fn.__wrapped__ for fn in compiled.preconditions] == [precondition]
         assert compiled.affordances == (affordance,)
         assert compiled.metadata == {"team": "core"}
 
@@ -695,8 +697,13 @@ class TestServiceFields:
         )
 
         compiled = _kernel_service(spec)
+        plain = _kernel_service(ServiceSpec(service=_create))
 
-        assert compiled == _kernel_service(ServiceSpec(service=_create))
+        # Each compile wraps the service in a translator of its own, around the same one.
+        assert compiled.service.__wrapped__ is plain.service.__wrapped__ is _create
+        assert dataclasses.replace(compiled, service=_create) == dataclasses.replace(
+            plain, service=_create
+        )
 
     def test_the_serializer_context_callables_ride_on_the_adapters(self) -> None:
         """``input_serializer_context`` on the Validator, ``output_serializer_context`` on the Presenter."""
@@ -923,8 +930,8 @@ class TestSelectorFields:
         assert compiled.prefetch_related == ("tags",)
         assert compiled.annotations == {"n": 1}
         assert compiled.filter_set is _PostFilter
-        assert compiled.kwargs is kwargs
-        assert compiled.preconditions == (precondition,)
+        assert compiled.kwargs.__wrapped__ is kwargs
+        assert [fn.__wrapped__ for fn in compiled.preconditions] == [precondition]
         assert compiled.progress_reporter is reporter
         assert compiled.metadata == {"a": 1}
 

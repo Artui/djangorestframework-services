@@ -160,6 +160,17 @@ lenient variant (`kernel_spec_variant(spec, lenient=True)`) whose parameters
 carry their names alone, so DRF's serializer is the only validator and answers
 in its own words; off HTTP the parameters carry their types and the kernel
 checks them first.
+
+A required field named like a seed has no parameter, so no call through the
+kernel's `dispatch` can send it, although HTTP and `dispatch_spec` read it from
+the body. `SerializerValidator.unsendable` names those fields, a `frozenset` of
+field names computed beside `parameters()`, so a transport can refuse such a
+spec before a call reaches it: `getattr(compiled.validator, "unsendable",
+frozenset())`. It names a required `user`, `result` or `serializer`, a `many` spec's
+row fields included, and the names the edge's variant excludes. It names no optional, defaulted, hidden or
+read-only field, no field the Validator declares a parameter for (a field named like a
+registered seed is one on the compiled spec), and says nothing of `partial`,
+which is the compiled spec's. Nothing in drfs reads it; HTTP is unchanged.
 `SerializerPresenter` is the kernel's `Presenter` over an output serializer,
 with the spec's `field_audiences` layered over the serializer's own markings.
 
@@ -180,6 +191,11 @@ with what a route would have captured: every declared `UrlKwarg`, taking its
 row lookup reads. A declared `QueryParam` goes to `request.query_params`. The
 object check asks only about model instances. A create or a collection is
 never asked about an object, as on HTTP.
+
+A class that raises its own refusal rather than answering `False` is asked
+inside [`translate_drf_refusals`](#an-authors-drf-refusals-as-the-kernels): its
+`PermissionDenied` leaves as `NotPermitted` with its message and code, and its
+`NotAuthenticated` as `DRFNotAuthenticated`, which DRF still answers 401.
 
 ::: rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck
 
@@ -229,6 +245,74 @@ imported, that refusal lands at its row, `{"books": {1: {...}}}`, with its
 codes, and is still DRF's `ValidationError`.
 
 ::: rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors
+
+## An author's DRF refusals as the kernel's
+
+The reverse direction. An author writes a service, a selector, a precondition,
+a `kwargs` or `input_data` provider, an `extend_queryset` or a permission class
+against DRF, and refuses with DRF's exceptions, which a transport over the
+kernel's `dispatch` reads as nothing it knows. So each of those runs inside
+`translate_drf_refusals()`, and on the kernel route
+(`dispatch(kernel_spec(spec))`) a refusal leaves as the kernel's class, still
+DRF's:
+
+| Raised by the author | Leaves the kernel route as | DRF answers it |
+| --- | --- | --- |
+| `ValidationError` | `DRFServiceValidationError`, a kernel `ServiceValidationError`, same detail and codes | 400 |
+| `PermissionDenied` | `NotPermitted`, the kernel's denial, with its message and code | 403 |
+| `NotAuthenticated` | `DRFNotAuthenticated`, the kernel's denial | 401 |
+
+A project's subclass of any of them keeps its detail and `status_code`. A
+refusal that is already the kernel's leaves as raised, and so does any other
+exception, DRF's `NotFound` and `Throttled` among them. A `progress_reporter`
+is not run inside it, since it reports and refuses nothing. A DRF refusal raised
+from any of these still reaches the kernel route as DRF's class, because the
+kernel or a Presenter runs them itself:
+
+- an `input_serializer_context` provider, which runs inside the Validator, and
+  an `output_serializer_context` provider, which runs inside the Presenter;
+- an affordance's `when` callable;
+- the methods of a selector spec's `filter_set`, which the kernel binds. A
+  service's output selector is the exception while the call narrows its re-read
+  (`output_filter_from_call`, the default): that filter runs inside the compiled
+  `extend_queryset`, so its refusals are translated;
+- a refusal a generator service raises while it is iterated, since the service
+  returned the generator and the iteration is the caller's.
+
+The compiled callables are wrappers around the author's. Identity is not kept
+(`inspect.unwrap` reaches the author's own), and a function's or method's name,
+qualname, module, docstring, attributes, annotations and signature are, with
+whether it is `async`. A `functools.partial` or a callable object gets neither
+its docstring nor its attributes copied, so a reader that wants the author's own
+docstring for one of those reads it off `inspect.unwrap(...)`.
+
+**Over HTTP and through `dispatch_spec`, nothing changes.** The edge re-raises
+the exception the author raised before it reads the refusal, with the context
+it was raised in: a view answers the status and body it answered before, and a
+`dispatch_spec` caller catches DRF's own class, keyed by the names the request
+used. A refusal drfs raised itself, such as a permission class answering
+`False`, is not one the edge restores.
+
+The Presenter answers a serializer refusing to render the same way, as the
+dual `InvalidArguments`: a mapping detail as it is, a list under
+`non_field_errors`. No route of this package presents through it, so only the
+kernel's `present` sees that.
+
+### `translate_drf_refusals`
+
+::: rest_framework_services.service_specs.translate_drf_refusals.translate_drf_refusals
+
+### `translating_drf_refusals`
+
+::: rest_framework_services.service_specs.translating_drf_refusals.translating_drf_refusals
+
+### `DRFServiceValidationError`
+
+::: rest_framework_services.service_specs.drf_service_validation_error.DRFServiceValidationError
+
+### `DRFNotAuthenticated`
+
+::: rest_framework_services.service_specs.drf_not_authenticated.DRFNotAuthenticated
 
 ## Compiling
 

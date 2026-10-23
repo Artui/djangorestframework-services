@@ -16,13 +16,16 @@ from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory
 from django_service_specs import Grant, dispatch, kernel_spec, present
 from django_service_specs import InvalidArguments as KernelInvalidArguments
-from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import BasePermission
+from django_service_specs import NotPermitted as KernelNotPermitted
+from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.test import APIClient, APITestCase
 
 from invoices.models import Invoice
 from invoices.selectors import list_invoices
 from invoices.serializers import InvoiceSerializer
+from invoices.services import CreateInvoiceInput, create_invoice
 from invoices.views import (
     ANNOTATE_SPEC,
     FIELDS_SPEC,
@@ -436,3 +439,52 @@ class CarriedRequestTests(APITestCase):
         # It read a copy: the request the run arrived on is untouched.
         self.assertEqual(arrived.user, self.arrived_user)
         self.assertEqual(dict(arrived.GET.lists()), {"status": ["paid"]})
+
+
+def _books_closed() -> None:
+    """A precondition written for the REST route, raising DRF's refusal."""
+
+    raise PermissionDenied("The books are closed for this period.")
+
+
+class KernelRouteRefusalTests(APITestCase):
+    """An author's DRF refusal, read by a caller of the kernel's own route."""
+
+    def setUp(self) -> None:
+        self.spec = ServiceSpec(
+            service=create_invoice,
+            input_serializer=CreateInvoiceInput,
+            permission_classes=[AllowAny],
+            preconditions=[_books_closed],
+        )
+        self.params = {"customer": "Acme", "amount_cents": 500}
+
+    def test_the_kernel_s_dispatch_raises_the_kernel_s_refusal(self) -> None:
+        # A transport built on the kernel catches its own class and never
+        # imports DRF ...
+        with self.assertRaises(KernelNotPermitted) as refused:
+            dispatch(kernel_spec(self.spec), principal=AnonymousUser(), arguments=self.params)
+        # ... and the refusal is still DRF's class, with the author's message.
+        self.assertIsInstance(refused.exception, PermissionDenied)
+        self.assertEqual(refused.exception.detail, "The books are closed for this period.")
+        self.assertFalse(Invoice.objects.exists())
+
+    def test_dispatch_spec_raises_exactly_what_the_author_raised(self) -> None:
+        with self.assertRaises(PermissionDenied) as refused:
+            dispatch_spec(self.spec, user=AnonymousUser(), params=self.params)
+        self.assertIs(type(refused.exception), PermissionDenied)
+
+
+class _AssignInput(serializers.Serializer):
+    customer = serializers.CharField()
+    # ``user`` is a name dispatch fills with the caller itself, so no call on
+    # the kernel's route can send this field.
+    user = serializers.CharField()
+
+
+class UnsendableFieldTests(APITestCase):
+    def test_the_compiled_validator_names_the_field_no_call_can_send(self) -> None:
+        compiled = kernel_spec(ServiceSpec(service=create_invoice, input_serializer=_AssignInput))
+
+        self.assertEqual(compiled.validator.unsendable, frozenset({"user"}))
+        self.assertEqual(compiled.parameters().names(), frozenset({"customer"}))

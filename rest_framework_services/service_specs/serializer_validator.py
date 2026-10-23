@@ -241,20 +241,72 @@ class SerializerValidator(Validator):
         the serializer is the one to answer it, as a live DRF view's request
         always was answered (``kernel_spec_variant(lenient=True)``).
         """
-        seeded = RESERVED_POOL_SEEDS | BOUND | self.excluded
-        walked = Parameters.of(
-            *(
-                param
-                for param in input_parameters(
-                    describe_serializer(self.serializer), registry=self.json_schema_registry
-                )
-                if param.name not in seeded
-            )
-        )
+        seeded = self._seeded()
+        walked = Parameters.of(*(param for param in self._walk() if param.name not in seeded))
         if not self.lenient:
             return walked
         return Parameters.of(
             *(Parameter(param.name, "any", required=False, nullable=True) for param in walked)
+        )
+
+    @property
+    def unsendable(self) -> frozenset[str]:
+        """The required input fields no call on the kernel route can send.
+
+        A field named like a seed (``RESERVED_POOL_SEEDS``, ``BOUND`` or
+        ``excluded``) is no parameter (see ``parameters()``), so the kernel has
+        nowhere to take its value from, while HTTP and ``dispatch_spec`` read it
+        from the body. Where the serializer *requires* such a field, a call
+        through the kernel's ``dispatch`` is refused for it however it is made.
+        This names those fields, by the name ``parameters()`` would have
+        declared them under, so a transport can refuse such a spec before a
+        call reaches it::
+
+            getattr(compiled.validator, "unsendable", frozenset())
+
+        - **Only what ``parameters()`` omits.** A field the Validator declares
+          a parameter for is never named, even one a seed, a server argument or
+          a call seed then fills: a field named like a *registered* seed is
+          one, since the compiled spec leaves ``excluded`` empty and only the
+          DRF edge's variant fills it. A required field called ``serializer``
+          or ``user`` is named.
+        - **Required only.** An optional field, one with a default, a
+          ``read_only`` field and a ``HiddenField`` are no input to require
+          (test_an_optional_field_is_not_unsendable,
+          test_a_read_only_field_is_not_unsendable,
+          test_a_hidden_field_is_not_unsendable), and a ``many`` spec's
+          row fields are read through the row serializer this Validator holds,
+          so a row's required ``user`` is named and a row's ``tenant`` is not
+          (test_a_many_specs_row_fields_are_read_through_the_row_serializer).
+        - **Not partial.** Whether a call may leave a required field out is
+          the compiled spec's ``partial``, not this attribute's question; it
+          names the field whether or not the spec is partial
+          (test_a_partial_spec_names_the_same_fields).
+        - **Not ``lenient``.** The declaration relaxes what each parameter
+          accepts and not which names are parameters
+          (test_a_lenient_validator_names_the_same_fields).
+
+        Computed on each read, from the serializer ``parameters()`` describes,
+        for the reason ``parameters()`` is: a ``ModelSerializer`` cannot read
+        its model when specs are built. HTTP is unchanged: nothing in drfs reads it.
+        """
+        seeded = self._seeded()
+        # One branch to coverage, so each conjunct is held by its own test: a
+        # field that is not required by test_an_optional_field_is_not_unsendable,
+        # and a required field no seed names (``title``, in every case here) by
+        # test_a_required_field_named_user_is_unsendable.
+        return frozenset(
+            param.name for param in self._walk() if param.required and param.name in seeded
+        )
+
+    def _seeded(self) -> frozenset[str]:
+        """The field names this Validator leaves out of ``parameters()``: the one place that list is written."""
+        return RESERVED_POOL_SEEDS | BOUND | self.excluded
+
+    def _walk(self) -> Parameters:
+        """Every input field of the described serializer as a Parameter, seed-named ones included."""
+        return input_parameters(
+            describe_serializer(self.serializer), registry=self.json_schema_registry
         )
 
     def validate(self, arguments: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:
