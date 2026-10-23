@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **On the kernel's route, an author's DRF refusals reach the caller as the
+  kernel's classes.** Under `dispatch(kernel_spec(spec))`, DRF's `ValidationError`,
+  `PermissionDenied` and `NotAuthenticated` raised by a service, a selector, a
+  precondition, a `kwargs` or `input_data` provider, an `extend_queryset` or a
+  permission class now leave as the kernel's `ServiceValidationError` and
+  `NotPermitted`, so a transport built on the kernel catches them without
+  importing DRF. Each is still DRF's class, with the same detail, codes and status,
+  so an `except` written against DRF's still catches and `NotAuthenticated` still
+  answers 401. Over HTTP and through `dispatch_spec` / `adispatch_spec` the
+  exception the author raised is restored, so those routes answer exactly as
+  before. Any other DRF `APIException` (`NotFound`, `Throttled`,
+  `AuthenticationFailed`, a project's own subclass) has no kernel class and leaves
+  as raised; a serializer-context provider is not covered either.
+- **`SerializerPresenter` refuses to render with the kernel's `InvalidArguments`**,
+  drfs' dual class, where it raised DRF's `ValidationError`. A list detail is now
+  keyed under `non_field_errors`; a mapping detail is unchanged.
+
+### Added
+- **`DRFServiceValidationError` and `DRFNotAuthenticated`**, the dual classes those
+  refusals leave as, and **`translate_drf_refusals` / `translating_drf_refusals`**,
+  the block and the callable wrapper that apply the translation. Each lives at its
+  own module path under `rest_framework_services.service_specs`, like drfs' other
+  dual classes, and none is exported from the package root.
+- **`SerializerValidator.unsendable`.** A `frozenset` of the input fields the
+  serializer requires and `parameters()` declares no parameter for: a required
+  field named like a dispatcher seed (`user`, `result`), the bound `serializer`,
+  or a name the DRF edge excludes, a `many` spec's row fields included. The
+  kernel's `dispatch` has nowhere to take such a field from, while HTTP and
+  `dispatch_spec` read it from the body, so a transport can ask which required
+  fields no call on the kernel's route can send with
+  `getattr(compiled.validator, "unsendable", frozenset())`. Nothing in drfs reads
+  it, and HTTP behaviour is unchanged.
+
 ## [0.61.0] — 2026-10-23
 
 ### Fixed

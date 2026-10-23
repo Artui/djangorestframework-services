@@ -47,9 +47,13 @@ a raise.
 
 The `ServiceError` family is the framework-agnostic error every transport already
 maps: to a response over HTTP, to a failed tool result over MCP, to a retryable
-error under an agent toolset. A DRF `APIException` subclass works over HTTP and
-escapes the mapping everywhere else — the same rule lands as a clean 409 for a
-browser and an unhandled internal error for an agent.
+error under an agent toolset. A DRF `APIException` subclass works over HTTP and,
+apart from three, escapes the mapping everywhere else — the same rule lands as a
+clean 409 for a browser and an unhandled internal error for an agent. The three are
+DRF's `ValidationError`, `PermissionDenied` and `NotAuthenticated`, which reach the
+kernel's route as the kernel's own refusals
+([An author's DRF refusals as the kernel's](../reference/service-specs.md#an-authors-drf-refusals-as-the-kernels));
+a `ServiceError` member still says more about *what kind* of failure it is.
 
 Pick the member that says *what kind* of failure it is, and every transport gets
 the distinction:

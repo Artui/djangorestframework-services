@@ -238,8 +238,11 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             ``serializer`` alongside ``instance`` or ``collection`` / ``user`` /
             ``request``. Raise-to-abort: the return value is ignored, so a
             predicate returning ``False`` does nothing. Raise ``ServiceError``
-            or ``ServiceValidationError`` — every transport maps those, whereas
-            a DRF ``APIException`` is mapped on HTTP only.
+            or ``ServiceValidationError`` — every transport maps those. DRF's
+            ``ValidationError``, ``PermissionDenied`` and ``NotAuthenticated``
+            reach the kernel's route as the kernel's classes too; any other DRF
+            ``APIException`` (``NotFound``, ``Throttled``, a project's own
+            subclass) is mapped on HTTP only.
         affordances: What must be true for this operation to be possible right
             now, as a sequence of
             [`Affordance`][rest_framework_services.types.affordance.Affordance]
