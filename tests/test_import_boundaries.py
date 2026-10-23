@@ -233,6 +233,8 @@ ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
     "service_specs/drf_permission_check.py": frozenset({"rest_framework.permissions"}),
     # The dual-base exceptions: each is the kernel's refusal and DRF's, so a view
     # that catches DRF's still catches it.
+    "service_specs/drf_not_authenticated.py": frozenset({"rest_framework.exceptions"}),
+    "service_specs/drf_service_validation_error.py": frozenset({"rest_framework.exceptions"}),
     "service_specs/invalid_arguments.py": frozenset({"rest_framework.exceptions"}),
     "service_specs/not_permitted.py": frozenset({"rest_framework.exceptions"}),
     "service_specs/principal_unavailable.py": frozenset({"rest_framework.exceptions"}),
@@ -251,6 +253,8 @@ ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
         {"rest_framework.fields", "rest_framework.serializers", "rest_framework.settings"}
     ),
     "service_specs/translate_dispatch_errors.py": frozenset({"rest_framework.exceptions"}),
+    # The reverse direction: an author's DRF refusals, raised as the kernel's classes.
+    "service_specs/translate_drf_refusals.py": frozenset({"rest_framework.exceptions"}),
     # ``rest_framework`` and ``rest_framework.settings`` are read for the formats
     # DRF's own fields use (``ISO_8601`` and the date and time format settings), so
     # a value the adapter renders agrees with the one a serializer field renders in

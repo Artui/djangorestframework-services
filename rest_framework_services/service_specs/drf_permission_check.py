@@ -12,6 +12,7 @@ from rest_framework.permissions import BasePermission
 
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.not_permitted import NotPermitted
+from rest_framework_services.service_specs.translate_drf_refusals import translate_drf_refusals
 from rest_framework_services.service_specs.utils import carried, offline_action
 from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.query_param import QueryParam
@@ -32,7 +33,14 @@ class DRFPermissionCheck(PermissionCheck):
     [`NotPermitted`][rest_framework_services.service_specs.not_permitted.NotPermitted]
     with that class's own ``message`` and ``code``, so a client is told what
     a DRF view would have told it; returning ``False`` instead would leave the
-    kernel to raise its own class with the generic wording.
+    kernel to raise its own class with the generic wording. A class that
+    raises its own refusal is asked inside
+    [`translate_drf_refusals`][rest_framework_services.service_specs.translate_drf_refusals.translate_drf_refusals],
+    so DRF's ``PermissionDenied`` leaves as that ``NotPermitted`` with the
+    class's message and code, and ``NotAuthenticated`` as
+    [`DRFNotAuthenticated`][rest_framework_services.service_specs.drf_not_authenticated.DRFNotAuthenticated],
+    which DRF still answers 401
+    (``tests/service_specs/test_drf_refusals_on_the_kernel_route.py``).
 
     **The view's ``kwargs`` are filled from the call's arguments before the
     class-level check.** A permission scoping by a route capture reads
@@ -119,7 +127,9 @@ class DRFPermissionCheck(PermissionCheck):
         """Whether every class's ``has_permission`` admits ``principal``, raising on the first that does not."""
         request, view = self._pair(principal, arguments, call_context, request=request, view=view)
         for permission in self._permissions():
-            if not permission.has_permission(request, view):
+            with translate_drf_refusals():
+                admitted = permission.has_permission(request, view)
+            if not admitted:
                 _deny(permission)
         return True
 
@@ -139,7 +149,9 @@ class DRFPermissionCheck(PermissionCheck):
             return True
         request, view = self._pair(principal, arguments, call_context, request=request, view=view)
         for permission in self._permissions():
-            if not permission.has_object_permission(request, view, target):
+            with translate_drf_refusals():
+                admitted = permission.has_object_permission(request, view, target)
+            if not admitted:
                 _deny(permission)
         return True
 

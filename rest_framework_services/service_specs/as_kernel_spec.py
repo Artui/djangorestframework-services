@@ -31,6 +31,9 @@ from typing_extensions import TypedDict
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
+from rest_framework_services.service_specs.translating_drf_refusals import (
+    translating_drf_refusals,
+)
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
     UNREADABLE_WITHOUT_A_CALL,
@@ -284,10 +287,12 @@ def _service(
         # A spread service's parameters are its caller's arguments, which the
         # kernel refuses as missing where none arrived; a wrapper may fill them
         # itself (test_a_spread_service_s_wrapper_fills_the_parameter).
-        service=_asking(
-            _as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
-            spec.service,
-            asked,
+        service=translating_drf_refusals(
+            _asking(
+                _as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
+                spec.service,
+                asked,
+            )
         ),
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
@@ -325,12 +330,15 @@ def _service(
         atomic=spec.atomic,
         idempotent=spec.idempotent,
         preconditions=(
-            [_asking(_as_it_runs(fn), fn, asked) for fn in spec.preconditions]
+            [
+                translating_drf_refusals(_asking(_as_it_runs(fn), fn, asked))
+                for fn in spec.preconditions
+            ]
             if spec.preconditions
             else spec.preconditions
         ),
-        kwargs=spec.kwargs,
-        input_data=spec.input_data,
+        kwargs=translating_drf_refusals(spec.kwargs),
+        input_data=translating_drf_refusals(spec.input_data),
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
@@ -472,8 +480,10 @@ def _selector(
         filtered = shadowed = frozenset()
     return KernelSelectorSpec(
         kind=spec.kind,
-        selector=_beside_its_filter(
-            _on_the_server_s_channel(_as_it_runs(spec.selector), shadowed), spec, filtered
+        selector=translating_drf_refusals(
+            _beside_its_filter(
+                _on_the_server_s_channel(_as_it_runs(spec.selector), shadowed), spec, filtered
+            )
         ),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
@@ -502,7 +512,9 @@ def _selector(
         prefetch_related=spec.prefetch_related,
         annotations=spec.annotations,
         extend_queryset=(
-            _positional(spec.extend_queryset) if spec.extend_queryset is not None else None
+            translating_drf_refusals(_positional(spec.extend_queryset))
+            if spec.extend_queryset is not None
+            else None
         ),
         filter_set=spec.filter_set,
         affordances=(
@@ -516,18 +528,22 @@ def _selector(
             # Only a target lookup's provider runs in an edge call: the
             # dispatched form of a selector spec carries none, as the edge
             # calls its provider itself (test_the_shaping_fields_carry).
-            _recording_beside_its_filter(
-                _answering_on_the_server_s_channel(spec.kwargs, shadowed),
-                spec,
-                filtered - hidden if role is not None else frozenset(),
+            translating_drf_refusals(
+                _recording_beside_its_filter(
+                    _answering_on_the_server_s_channel(spec.kwargs, shadowed),
+                    spec,
+                    filtered - hidden if role is not None else frozenset(),
+                )
             )
             if role != "output"
             else None
         ),
         preconditions=(
             [
-                _beside_its_filter(
-                    _on_the_server_s_channel(_as_it_runs(fn), shadowed), spec, filtered
+                translating_drf_refusals(
+                    _beside_its_filter(
+                        _on_the_server_s_channel(_as_it_runs(fn), shadowed), spec, filtered
+                    )
                 )
                 for fn in spec.preconditions
             ]
@@ -945,7 +961,9 @@ def _output(
             compiled = dataclasses.replace(
                 compiled,
                 filter_set=None,
-                extend_queryset=_filtering_from_the_call(output.extend_queryset, output.filter_set),
+                extend_queryset=translating_drf_refusals(
+                    _filtering_from_the_call(output.extend_queryset, output.filter_set)
+                ),
             )
         return compiled, None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")

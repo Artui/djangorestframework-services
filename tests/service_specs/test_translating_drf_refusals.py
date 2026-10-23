@@ -1,0 +1,194 @@
+"""``translating_drf_refusals`` changes what an author callable raises, and nothing the compile reads.
+
+The compile hands the kernel each author callable that runs within a call
+through it. The kernel binds the call by the callable's signature, awaits it
+by its kind, and reads the keys a ``kwargs`` provider fills off its return
+``TypedDict``, resolved in the provider's own module. So every surface the
+compile derives is compared with the translator patched out: a wrapper that
+hid ``async``-ness, the signature, the annotations or ``__wrapped__`` would
+change one of them.
+"""
+
+from __future__ import annotations
+
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Annotated, Any
+
+import pytest
+from django.db.models import QuerySet
+from django_service_specs.pool.provider_keys import provider_keys
+from django_service_specs.types.is_async import is_async
+from rest_framework import serializers
+from typing_extensions import TypedDict, Unpack
+
+from rest_framework_services import (
+    NotClientInput,
+    QueryParam,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
+from rest_framework_services.dispatch.utils import server_owned_keys
+from rest_framework_services.service_specs import as_kernel_spec as compiler
+from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
+from rest_framework_services.service_specs.translating_drf_refusals import (
+    translating_drf_refusals,
+)
+from tests.testapp.models import Post
+
+
+class _Scope(TypedDict):
+    tenant: str
+
+
+class _Keys(TypedDict):
+    title: str
+    status: str
+
+
+class _Title(serializers.Serializer):
+    title = serializers.CharField()
+    status = serializers.CharField()
+    note = serializers.CharField(required=False)
+
+
+def _scope(**_: Any) -> _Scope:
+    return {"tenant": "acme"}
+
+
+def _create(*, title: str, status: str, tenant: str) -> None: ...
+
+
+async def _acreate(*, title: str, status: str, tenant: str) -> None: ...
+
+
+def _gate(*, tenant: Annotated[str, NotClientInput] = "own", status: str) -> None: ...
+
+
+def _spread(
+    *, title: str, priority: int = 1, owner: Annotated[str, NotClientInput] = "x"
+) -> None: ...
+
+
+def _unpacked(**keys: Unpack[_Keys]) -> None: ...
+
+
+def _rows(*, q: str = "", tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
+    return Post.objects.all()
+
+
+async def _arows(*, q: str = "") -> QuerySet[Post]:
+    return Post.objects.all()
+
+
+def _lookup(*, pk: int, tenant: Annotated[str, NotClientInput] = "own") -> Post:
+    return Post.objects.get(pk=pk)
+
+
+def _extend(queryset: Any, view: Any, request: Any) -> Any:
+    return queryset
+
+
+_SPECS: dict[str, Callable[[], Any]] = {
+    "sync-service": lambda: ServiceSpec(
+        service=_create,
+        input_serializer=_Title,
+        kwargs=_scope,
+        preconditions=[_gate],
+        input_data=lambda **_: {},
+    ),
+    "async-service": lambda: ServiceSpec(service=_acreate, input_serializer=_Title, kwargs=_scope),
+    "spread-service": lambda: ServiceSpec(service=_spread),
+    "unpacked-service": lambda: ServiceSpec(service=_unpacked),
+    "update-with-lookup": lambda: ServiceSpec(
+        service=_create,
+        input_serializer=_Title,
+        kwargs=_scope,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_lookup, kwargs=_scope
+        ),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_lookup, extend_queryset=_extend
+        ),
+    ),
+    "list-selector": lambda: SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_rows,
+        kwargs=_scope,
+        preconditions=[_gate],
+        extend_queryset=_extend,
+        reads=[QueryParam("status")],
+    ),
+    "async-selector": lambda: SelectorSpec(kind=SelectorKind.LIST, selector=_arows),
+}
+_VARIANTS: list[dict[str, Any]] = [
+    {},
+    {"lenient": True},
+    {"spread": True},
+    {"server_input": False},
+    {"unguarded": True},
+    {"target": True},
+]
+
+
+def _surfaces(spec: Any) -> list[Any]:
+    """Everything the compile derives that a translator could change."""
+    compiled = spec.as_kernel_spec()
+    callables = [
+        getattr(compiled, "service", None) or compiled.selector,
+        *(compiled.preconditions or ()),
+    ]
+    return [
+        compiled.parameters(),
+        server_owned_keys(spec),
+        provider_keys(compiled.kwargs),
+        [is_async(fn) for fn in callables],
+        [inspect.signature(fn) for fn in callables],
+        *(kernel_spec_variant(spec, **variant).parameters() for variant in _VARIANTS),
+    ]
+
+
+@pytest.mark.parametrize("build", list(_SPECS.values()), ids=list(_SPECS))
+def test_the_compile_reads_the_same_with_and_without_it(
+    build: Callable[[], Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A fresh spec for each compile: a spec caches what it compiles to.
+    translated = _surfaces(build())
+    monkeypatch.setattr(compiler, "translating_drf_refusals", lambda fn: fn)
+
+    assert translated == _surfaces(build())
+
+
+def test_a_typed_provider_still_names_the_keys_it_fills() -> None:
+    """Resolved in the provider's own module, where the ``TypedDict`` is."""
+    assert provider_keys(translating_drf_refusals(_scope)) == provider_keys(_scope)
+    assert provider_keys(translating_drf_refusals(_scope)).filled == {"tenant"}  # ty: ignore[unresolved-attribute]
+
+
+@pytest.mark.parametrize("fn", [_create, _acreate], ids=["sync", "async"])
+def test_it_reports_what_it_wraps(fn: Callable[..., Any]) -> None:
+    wrapped = translating_drf_refusals(fn)
+
+    assert is_async(wrapped) is is_async(fn)
+    assert inspect.signature(wrapped) == inspect.signature(fn)
+    assert wrapped.__wrapped__ is fn  # ty: ignore[unresolved-attribute]
+    assert (wrapped.__name__, wrapped.__qualname__, wrapped.__module__) == (
+        fn.__name__,
+        fn.__qualname__,
+        fn.__module__,
+    )
+    assert wrapped.__annotations__ == fn.__annotations__
+    assert fn.__dict__ == {}
+
+
+def test_a_callable_with_no_name_of_its_own_is_named_for_what_it_is() -> None:
+    wrapped = translating_drf_refusals(functools.partial(_create, title="t"))
+
+    assert (wrapped.__name__, wrapped.__qualname__) == ("callable", "callable")
+    assert inspect.signature(wrapped) == inspect.signature(functools.partial(_create, title="t"))
+
+
+def test_an_empty_seat_stays_empty() -> None:
+    assert translating_drf_refusals(None) is None

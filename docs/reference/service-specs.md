@@ -181,6 +181,11 @@ row lookup reads. A declared `QueryParam` goes to `request.query_params`. The
 object check asks only about model instances. A create or a collection is
 never asked about an object, as on HTTP.
 
+A class that raises its own refusal rather than answering `False` is asked
+inside [`translate_drf_refusals`](#an-authors-drf-refusals-as-the-kernels): its
+`PermissionDenied` leaves as `NotPermitted` with its message and code, and its
+`NotAuthenticated` as `DRFNotAuthenticated`, which DRF still answers 401.
+
 ::: rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck
 
 ::: rest_framework_services.service_specs.not_permitted.NotPermitted
@@ -229,6 +234,57 @@ imported, that refusal lands at its row, `{"books": {1: {...}}}`, with its
 codes, and is still DRF's `ValidationError`.
 
 ::: rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors
+
+## An author's DRF refusals as the kernel's
+
+The reverse direction. An author writes a service, a selector, a precondition,
+a `kwargs` or `input_data` provider, an `extend_queryset` or a permission class
+against DRF, and refuses with DRF's exceptions, which a transport over the
+kernel's `dispatch` reads as nothing it knows. So each of those runs inside
+`translate_drf_refusals()`, and on the kernel route
+(`dispatch(kernel_spec(spec))`) a refusal leaves as the kernel's class, still
+DRF's:
+
+| Raised by the author | Leaves the kernel route as | DRF answers it |
+| --- | --- | --- |
+| `ValidationError` | `DRFServiceValidationError`, a kernel `ServiceValidationError`, same detail and codes | 400 |
+| `PermissionDenied` | `NotPermitted`, the kernel's denial, with its message and code | 403 |
+| `NotAuthenticated` | `DRFNotAuthenticated`, the kernel's denial | 401 |
+
+A project's subclass of any of them keeps its detail and `status_code`. A
+refusal that is already the kernel's leaves as raised, and so does any other
+exception, DRF's `NotFound` and `Throttled` among them. A `progress_reporter`
+is not run inside it, since it reports and refuses nothing, and neither is an
+`input_serializer_context` provider, which runs inside the Validator: a DRF
+refusal raised from that one still reaches the kernel route as DRF's class.
+
+**Over HTTP and through `dispatch_spec`, nothing changes.** The edge re-raises
+the exception the author raised before it reads the refusal, with the context
+it was raised in: a view answers the status and body it answered before, and a
+`dispatch_spec` caller catches DRF's own class, keyed by the names the request
+used. A refusal drfs raised itself, such as a permission class answering
+`False`, is not one the edge restores.
+
+The Presenter answers a serializer refusing to render the same way, as the
+dual `InvalidArguments`: a mapping detail as it is, a list under
+`non_field_errors`. No route of this package presents through it, so only the
+kernel's `present` sees that.
+
+### `translate_drf_refusals`
+
+::: rest_framework_services.service_specs.translate_drf_refusals.translate_drf_refusals
+
+### `translating_drf_refusals`
+
+::: rest_framework_services.service_specs.translating_drf_refusals.translating_drf_refusals
+
+### `DRFServiceValidationError`
+
+::: rest_framework_services.service_specs.drf_service_validation_error.DRFServiceValidationError
+
+### `DRFNotAuthenticated`
+
+::: rest_framework_services.service_specs.drf_not_authenticated.DRFNotAuthenticated
 
 ## Compiling
 
