@@ -498,7 +498,8 @@ callable cannot run otherwise; only a `default` on the read, or on the
 parameter, makes it optional in the compiled parameters and the kernel's input
 schema (`spec_input_schema`), which report a default and do not fill it in. A
 parameter marked `InputRequired` stays required under a read even with a `None`
-default. A transport
+default, except for a target lookup's keys on the DRF edge, which the edge
+relaxes because it never runs the lookup for a row a view hands in. A transport
 adapter that keeps its own registration and routes the value to
 `build_offline_context(kwargs=...)` itself, as earlier releases needed, still
 reaches a provider reading `view.kwargs`; the value is an argument only where

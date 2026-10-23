@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `QueryParam("ticket")` used to be served `None` for a call leaving it out; that
   call is now refused with `InvalidArguments` (a live `SelectorListView` answers
   `400` where it answered `200`). Drop the marker if the parameter is optional.
+  A target lookup the DRF edge runs for a call that hands no row is answered as
+  before: the edge's variants relax its keys, as they must for a row a view hands
+  in (below).
 - **A required or `InputRequired` key of an `Unpack`-ed `TypedDict` under a plain
   declared read is refused when left out.** It used to compile optional and the
   callable raised `KeyError` (a live selector view answered a server error); it
