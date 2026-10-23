@@ -6099,6 +6099,12 @@ built, any value of that mapping that is not one: an <code>isinstance</code> aga
 a protocol of this one attribute would pass a <code>SelectorSpec</code>, which has
 an <code>affordances</code> field of its own, and the refusal would let through the
 spec of a read where the spec of a write is meant.</p>
+<p>The attribute is declared as a read-only property, because <code>ServiceSpec</code>
+is a frozen dataclass and its field is read-only: a plain annotation here
+would declare a writable attribute the field then narrows, which a type
+checker refuses as an invalid override. The property never runs - the
+dataclass's field shadows it on every <code>ServiceSpec</code> - so it only states
+what the selector may read.</p>
 
 
 

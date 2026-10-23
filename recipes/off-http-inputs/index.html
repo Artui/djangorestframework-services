@@ -2390,9 +2390,12 @@ the context, so a transport's own registered object is never replaced by what a
 caller put in the dict. <code>dispatch_spec</code> registers the <code>request</code> and <code>view</code> it
 was handed, so one passed there is the seed and wins; with none passed, an entry
 the caller put in <code>call_context</code> is read. A transport that runs the kernel's
-<code>dispatch</code> over <code>kernel_spec(spec)</code> registers no seed at all, and its context
+<code>dispatch</code> over <code>kernel_spec(spec)</code> registers none of drfs' edge seeds, and its context
 holds the request a run arrived on and, perhaps, a view built for the operation
-(<a href="../../reference/dispatch/#transport-neutral-dispatch">the call's context</a>).</p>
+(<a href="../../reference/dispatch/#transport-neutral-dispatch">the call's context</a>). A seed
+it does register fills a selector's, a target lookup's or a spread service's
+signature parameter of that name, since the compile marks every such read
+<code>reflected</code>, while a declared read of that name is still refused.</p>
 <p>What a carried request or view becomes differs by consumer, and by what it is:</p>
 <table>
 <thead>

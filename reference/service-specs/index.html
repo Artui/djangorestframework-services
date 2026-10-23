@@ -3853,7 +3853,13 @@ compiles it once per object. This function compiles afresh on every call.</p>
   always did. A misplaced marker is refused here, so at registration. Each declared <code>UrlKwarg</code>
   and <code>QueryParam</code> in the spec's own <code>reads</code> is a Parameter too,
   winning over a reflected one of its name, and a read unless it is a
-  shape (below); one the target lookup reads joins the lookup's reads.</li>
+  shape (below); one the target lookup reads joins the lookup's reads.
+  Every read taken off a signature is marked <code>reflected</code> and a declared
+  one is not, so the kernel fills a registered pool seed's name in the
+  former on every dispatch, <code>kernel_spec(spec)</code>'s included, and still
+  refuses the latter as an argument meeting a seed
+  (test_the_kernel_fills_a_selector_s_reflected_read_from_the_seed,
+  test_a_declared_read_named_like_the_seed_is_still_refused_by_the_kernel).</li>
 <li><code>shapes</code> is each declared <code>QueryParam</code> of the top-level spec that no
   callable of the call takes by name: not the service or selector, a
   precondition, a target lookup, a <code>kwargs</code> or <code>input_data</code> provider,
@@ -3893,11 +3899,17 @@ parameters. Without it, as <code>AUTO</code> and <code>BUNDLE</code> dispatch a 
 caller fills only what the Validator, the target lookup and the declared
 <code>reads</code> read, so <code>def destroy(*, instance, hard=False)</code> is never handed
 a <code>hard</code> the request sent (see <code>_takes_its_signature</code>).</p>
-<p><code>seeded</code> names the seeds a dispatch registers beyond the pool's own, which
-the DRF edge compiles per call: a signature's parameter of such a name -
-the selector's, a target lookup's, a spread service's - is no argument, and
-the seed fills it, as it always filled a service's. A declared read of the
-name stays one, which the kernel refuses as an argument meeting a seed.</p>
+<p><code>seeded</code> names seeds a dispatch registers beyond the pool's own, and
+leaves a signature's parameter of such a name - the selector's, a target
+lookup's, a spread service's - out of the compiled reads altogether
+(test_seeded_compiles_a_name_out_of_a_selector_s_reads_a_marked_read_stays,
+test_seeded_compiles_a_name_out_of_a_target_lookup_s_reads,
+test_seeded_compiles_a_name_out_of_a_spread_service_s_reads). Without it
+the parameter is a <code>reflected</code> read, which the kernel fills from a
+registered seed of its name on every dispatch but which stays among the
+compiled reads. The DRF edge no longer passes <code>seeded</code>. A declared read
+of the name stays one, which the kernel refuses as an argument meeting a
+seed.</p>
 <p><strong>What the kernel refuses at construction is stripped or refused here</strong>,
 naming the drfs field. Stripped, because drfs never read them: an output
 selector's <code>kwargs</code>, an instance lookup's <code>allow_none</code> (the kernel would
@@ -3937,8 +3949,7 @@ for a service's output and as <code>instance</code> for a retrieve.</p>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">spread</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lenient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">excluded</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(),</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">seeded</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(),</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KernelServiceSpec</span> <span class="o">|</span> <span class="n">KernelSelectorSpec</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KernelServiceSpec</span> <span class="o">|</span> <span class="n">KernelSelectorSpec</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3974,11 +3985,9 @@ required.</p>
   edge evaluates both itself and merges what they answer into the
   arguments, and a service spec's <code>kwargs</code> seat hands back the author
   values the edge call carries (<code>author_values</code>) instead.
-  The kernel relaxes a parameter only for a provider annotated to fill it,
-  so an untyped one, as drfs has always taken, would be refused as missing
-  before it ran; and a typed one declining a key it is annotated to fill
-  would reach the kernel's run as a <code>KeyError</code>. Leaving either on would
-  also call the provider twice.</li>
+  Leaving either on would call the provider a second time
+  (test_a_provider_runs_once_per_call,
+  test_the_input_data_provider_runs_once_per_call).</li>
 <li><code>spread</code>: a service spec with no <code>input_serializer</code> takes the
   caller's values for its own parameters, as an explicit
   <code>ArgumentBinding.SPREAD_AUTHOR_WINS</code> dispatches it. Off by default, as
@@ -4000,11 +4009,6 @@ required.</p>
   for (<code>SerializerValidator(excluded=...)</code>): the edge compiles the
   names a seed of the call takes, so a serializer field of that name is
   the serializer's alone rather than a parameter the kernel refuses.</li>
-<li><code>seeded</code>: names a seed of the call fills, which no parameter read off
-  a signature takes - a selector's, a target lookup's, or a spread
-  service's (<code>as_kernel_spec(seeded=...)</code>) - so the seed fills a
-  parameter of that name rather than the kernel refusing it as an argument
-  meeting a seed, as a service's parameter always was.</li>
 </ul>
 
 

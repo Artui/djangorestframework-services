@@ -7406,10 +7406,10 @@ answer is the only one: a key it then leaves out, or returns as
                 <p>The keys whose value admits <code>UnsetType</code>
 (<code>tenant: str | UnsetType</code>). The provider may return <code>UNSET</code> for
 one, which dispatch removes from the pool, so the caller's value is
-the one the callable receives. Such a key stays the caller's: a
-transport keeps asking for it, and dispatch holds it to its
-declaration, so a required one is required of the caller even
-though the provider may fill it. A <code>filled</code> key is relaxed where
+the one the callable receives. Such a key stays the caller's to
+send: a transport keeps offering it, and dispatch lets the caller
+leave it out and checks a required one once the provider has
+answered, refusing it when nobody filled it. A <code>filled</code> key is relaxed where
 the provider's values reach it - a selector's <code>kwargs</code> that
 selector's reads, a service spec's <code>kwargs</code> the spec's
 <code>reads</code>, and <code>input_data</code> the Validator's parameters, at the
@@ -8380,11 +8380,12 @@ over either. <code>request</code> is not one of its parameters: <code>dispatch_s
 is kept rather than swapped for <code>null_progress</code>.</p>
 <p>A parameter named like a seed the call registers is the seed's, on a selector,
 a target lookup or a spread service as on a service: the seed fills it, and a
-caller's value of the name is dropped rather than reaching it. <code>dispatch_spec</code>
-compiles that per call, from the <code>pool_seeds</code> it is handed. <code>kernel_spec(spec)</code>
-knows no project's seeds, so the kernel's own <code>dispatch</code>, handed the same seeds
-for that compiled spec, refuses the parameter as an argument meeting a seed. A
-name declared in the spec's <code>reads</code> is refused by both.</p>
+caller's value of the name is dropped rather than reaching it. The compile
+marks every read it takes off a signature <code>reflected</code>, and the kernel fills a
+reflected read from a registered seed on any dispatch, so the kernel's own
+<code>dispatch</code> over <code>kernel_spec(spec)</code>, handed the same seeds, answers as
+<code>dispatch_spec</code> does. A name declared in the spec's <code>reads</code> is not reflected,
+and is refused by both when it meets a seed.</p>
 <p><code>base_pool</code> is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. <strong>If you are writing a transport adapter, build your pool by calling
 it</strong> — <code>base_pool(user=…, **your_own_entries)</code> — rather than writing a
