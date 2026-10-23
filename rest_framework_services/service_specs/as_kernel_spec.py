@@ -1206,7 +1206,10 @@ def _saying_required(entries: Sequence[UrlKwarg | QueryParam] | None) -> frozens
     edge relaxes, so it is not named here
     (the ``*-declared-without-required`` cases of
     test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
-    A ``QueryParam`` has no ``required``, so it never is.
+    The ``declared-by-the-*`` cases of the same test hold the other direction:
+    a read saying ``required=True`` stays required at the edge.
+    test_the_edge_answers_it_without_a_key_the_spec_declares holds the claim end
+    to end. A ``QueryParam`` has no ``required``, so it never is.
     """
     return frozenset(entry.name for entry in entries or () if getattr(entry, "required", False))
 

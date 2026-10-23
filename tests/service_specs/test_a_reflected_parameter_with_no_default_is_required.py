@@ -449,6 +449,19 @@ class TestARowHandedIn:
 
         assert edge(self._spec(), params={}, instance=post).value == "handed"
 
+    @_CORES
+    def test_the_edge_answers_it_without_a_key_the_spec_declares(self, edge: Any) -> None:
+        """A declared read of the lookup's key says nothing of requiredness, so the edge relaxes it too."""
+        post = Post.objects.create(title="handed")
+        spec = ServiceSpec(
+            service=_untouched,
+            permission_classes=[AllowAny],
+            reads=[QueryParam("pk")],
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_lookup),
+        )
+
+        assert edge(spec, params={}, instance=post).value == "handed"
+
     def test_the_kernel_s_route_still_asks_for_the_key(self) -> None:
         post = Post.objects.create(title="handed")
 
