@@ -25,6 +25,14 @@ class AffordanceDeclarer:
     a protocol of this one attribute would pass a ``SelectorSpec``, which has
     an ``affordances`` field of its own, and the refusal would let through the
     spec of a read where the spec of a write is meant.
+
+    The attribute is declared as a read-only property, because ``ServiceSpec``
+    is a frozen dataclass and its field is read-only: a plain annotation here
+    would declare a writable attribute the field then narrows, which a type
+    checker refuses as an invalid override. The property never runs - the
+    dataclass's field shadows it on every ``ServiceSpec`` - so it only states
+    what the selector may read.
     """
 
-    affordances: Sequence[Affordance] | None
+    @property
+    def affordances(self) -> Sequence[Affordance] | None: ...
