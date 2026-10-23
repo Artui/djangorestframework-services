@@ -11,14 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A declared `UrlKwarg` or `QueryParam` keeps the requiredness of the callable
   parameter it names.** A read naming a parameter with no default of a selector,
   a target lookup, a service (under any binding) or either's `preconditions` used
-  to compile optional, so `kernel_spec(spec).parameters()` and
-  `spec_input_schema` did not ask the caller for a value `dispatch` refused the
+  to compile optional, so the compiled parameters
+  (`kernel_spec(spec).parameters()`) and the kernel's input schema
+  (`spec_input_schema`) did not ask the caller for a value `dispatch` refused the
   call without. Such a read is now `required` in both, as it is with no read
   declared. A read that declares a `default`, or names a parameter that has one,
-  stays optional, and `UrlKwarg(required=True)` requires it either way. Only
-  names already declared as reads change; no parameter is added. The DRF edge
-  still relaxes these, so a view handing the row it resolved answers without the
-  lookup's key.
+  stays optional in them (drfs reports the default there and does not fill it in
+  itself), and `UrlKwarg(required=True)` requires it either way. The rule is about
+  those two surfaces; `spec_to_json_schema` is unchanged. No parameter is added.
+- **A parameter marked `InputRequired` stays required under a declared read, even
+  with a `None` default**, as it is with no read declared. A selector taking
+  `ticket: Annotated[str | None, InputRequired] = None` beside
+  `QueryParam("ticket")` used to be served `None` for a call leaving it out; that
+  call is now refused with `InvalidArguments` (a live `SelectorListView` answers
+  `400` where it answered `200`). Drop the marker if the parameter is optional.
+- **A required or `InputRequired` key of an `Unpack`-ed `TypedDict` under a plain
+  declared read is refused when left out.** It used to compile optional and the
+  callable raised `KeyError` (a live selector view answered a server error); it
+  now answers `InvalidArguments` (`400`).
+- The DRF edge still answers a row a view hands in without the target lookup's
+  key, for a read declared on the spec or on the lookup, including a key the
+  lookup marks `InputRequired` or takes as a `TypedDict` key: the lookup never
+  runs for that row. A selector taking a name plain beside a precondition that
+  marks it `InputRequired` now keeps it required on the edge's variants too; the
+  answer a caller sees is unchanged.
 
 ## [0.60.0] — 2026-10-23
 

@@ -1229,7 +1229,16 @@ def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset
     for role in ("instance", "collection"):
         nested = getattr(spec, f"{role}_selector_spec")
         if nested is not None and nested.selector is not None:
-            lookup |= _no_default(nested.selector) - _saying_required(nested.reads)
+            # A name the spec or the lookup declares a plain read for is relaxed too,
+            # whatever makes it required: the lookup never runs for a row a view
+            # hands in, so a marked or ``TypedDict`` key it takes is not asked of the
+            # caller either (test_a_handed_row_is_answered_without_a_key_the_lookup_marks_and_the_spec_declares,
+            # its marked and ``TypedDict`` cases). One that is not the lookup's is no
+            # compiled read of it, so nothing is relaxed.
+            lookup |= (
+                _no_default(nested.selector)
+                | {entry.name for entry in (*(spec.reads or ()), *(nested.reads or ()))}
+            ) - _saying_required(nested.reads)
     return own - declared, lookup - declared
 
 
@@ -1435,9 +1444,10 @@ def _merge(
     each operand is named: test_a_read_naming_a_parameter_with_no_default_compiles_required
     fails without ``reflected.required``, and
     test_a_read_saying_required_requires_a_parameter_that_has_a_default without
-    ``read.required``. A read declaring a ``default`` is the value that fills the
-    parameter, which stays optional
-    (test_a_read_with_a_default_stays_optional fails without that operand), and a
+    ``read.required``. A read declaring a ``default`` stays optional on the
+    compiled parameters and the kernel's input schema, which report the default
+    and do not fill it in (test_a_read_with_a_default_stays_optional fails
+    without that operand), and a
     parameter with a default of its own was never required
     (test_a_parameter_with_a_default_stays_optional_under_a_read).
     """

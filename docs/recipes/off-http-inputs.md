@@ -495,7 +495,10 @@ counterpart of the `InputRequired` marker: both land the name in the schema's
 the name of a parameter that has no default, of the selector, a target lookup,
 the service or a precondition, is required without `required=True`, since the
 callable cannot run otherwise; only a `default` on the read, or on the
-parameter, makes it optional. A transport
+parameter, makes it optional in the compiled parameters and the kernel's input
+schema (`spec_input_schema`), which report a default and do not fill it in. A
+parameter marked `InputRequired` stays required under a read even with a `None`
+default. A transport
 adapter that keeps its own registration and routes the value to
 `build_offline_context(kwargs=...)` itself, as earlier releases needed, still
 reaches a provider reading `view.kwargs`; the value is an argument only where
