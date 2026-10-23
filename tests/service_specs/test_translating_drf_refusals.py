@@ -192,3 +192,131 @@ def test_a_callable_with_no_name_of_its_own_is_named_for_what_it_is() -> None:
 
 def test_an_empty_seat_stays_empty() -> None:
     assert translating_drf_refusals(None) is None
+
+
+# --- What a reader of the compiled spec's callables sees ---------------------
+
+
+def _documented_service(*, title: str = "") -> None:
+    """The service's own words."""
+
+
+_documented_service.audience = "staff"  # ty: ignore[unresolved-attribute]
+
+
+async def _documented_aservice(*, title: str = "") -> None:
+    """The async service's own words."""
+
+
+def _documented_selector(**_: Any) -> QuerySet[Post]:
+    """The selector's own words."""
+    return Post.objects.all()
+
+
+def _documented_kwargs(**_: Any) -> _Scope:
+    """The provider's own words."""
+    return {"tenant": "acme"}
+
+
+class _Owner:
+    def create(self, *, title: str = "") -> None:
+        """The method's own words."""
+
+    def rows(self, **_: Any) -> QuerySet[Post]:
+        """The bound selector's own words."""
+        return Post.objects.all()
+
+
+_DOCUMENTED: dict[str, tuple[Callable[[], Any], Callable[[Any], Any], str]] = {
+    "function-service": (
+        lambda: ServiceSpec(service=_documented_service),
+        lambda compiled: compiled.service,
+        "The service's own words.",
+    ),
+    "method-service": (
+        lambda: ServiceSpec(service=_Owner().create),
+        lambda compiled: compiled.service,
+        "The method's own words.",
+    ),
+    "async-service": (
+        lambda: ServiceSpec(service=_documented_aservice),
+        lambda compiled: compiled.service,
+        "The async service's own words.",
+    ),
+    "function-selector": (
+        lambda: SelectorSpec(kind=SelectorKind.LIST, selector=_documented_selector),
+        lambda compiled: compiled.selector,
+        "The selector's own words.",
+    ),
+    "method-selector": (
+        lambda: SelectorSpec(kind=SelectorKind.LIST, selector=_Owner().rows),
+        lambda compiled: compiled.selector,
+        "The bound selector's own words.",
+    ),
+    "kwargs-provider": (
+        lambda: ServiceSpec(service=_documented_service, kwargs=_documented_kwargs),
+        lambda compiled: compiled.kwargs,
+        "The provider's own words.",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("build", "seat", "words"), list(_DOCUMENTED.values()), ids=list(_DOCUMENTED)
+)
+def test_the_compiled_callable_keeps_the_author_s_docstring(
+    build: Callable[[], Any], seat: Callable[[Any], Any], words: str
+) -> None:
+    """A tool description is read off the compiled callable, as on 0.61.0."""
+    assert inspect.getdoc(seat(build().as_kernel_spec())) == words
+
+
+def test_a_function_s_attributes_survive_the_wrap() -> None:
+    wrapped = translating_drf_refusals(_documented_service)
+
+    assert wrapped.audience == "staff"  # ty: ignore[unresolved-attribute]
+    assert _documented_service.__dict__ == {"audience": "staff"}
+
+
+def test_a_decorated_function_is_still_wrapped_by_the_translator() -> None:
+    """Its own ``__wrapped__`` and ``__signature__`` attributes do not displace the translator's."""
+
+    def inner(*, title: str) -> None: ...
+
+    @functools.wraps(inner)
+    def decorated(**kwargs: Any) -> None: ...
+
+    wrapped = translating_drf_refusals(decorated)
+
+    assert wrapped.__wrapped__ is decorated  # ty: ignore[unresolved-attribute]
+    assert inspect.unwrap(wrapped) is inner
+    assert inspect.signature(wrapped) == inspect.signature(decorated)
+
+
+class _Callable:
+    """The class's words, which a partial or an object has no function to read."""
+
+    note = "kept on the object"
+
+    def __call__(self, *, title: str = "") -> None: ...
+
+
+@pytest.mark.parametrize(
+    "author",
+    [functools.partial(_create, title="t"), _Callable()],
+    ids=["partial", "callable-object"],
+)
+def test_a_partial_or_a_callable_object_gets_no_docstring_or_attributes(
+    author: Callable[..., Any],
+) -> None:
+    """``inspect.isfunction`` is how a reader tells a function's words from a class's.
+
+    Copying the class's docstring would make ``functools.partial`` or the
+    callable's class read as the description of this one callable.
+    """
+    wrapped = translating_drf_refusals(author)
+
+    assert wrapped.__doc__ is None
+    assert inspect.getdoc(wrapped) is None
+    assert "note" not in wrapped.__dict__
+    assert inspect.unwrap(wrapped) is author

@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import django_filters
 import pytest
 from asgiref.sync import async_to_sync
 from django.contrib.auth.models import AnonymousUser
@@ -29,11 +30,13 @@ from django.db.models import QuerySet
 from django_service_specs.authorization.not_permitted import NotPermitted as KernelNotPermitted
 from django_service_specs.dispatch.adispatch import adispatch
 from django_service_specs.dispatch.dispatch import dispatch
+from django_service_specs.dispatch.present import present
 from django_service_specs.pool.pool_seeds import DEFAULT_POOL_SEEDS
 from django_service_specs.services.service_validation_error import (
     ServiceValidationError as KernelServiceValidationError,
 )
 from django_service_specs.specs.kernel_spec import kernel_spec
+from django_service_specs.types.affordance import Affordance
 from rest_framework import serializers
 from rest_framework.exceptions import (
     NotAuthenticated,
@@ -71,7 +74,17 @@ def _arun(spec: Any, arguments: dict[str, Any] | None = None) -> Any:
 _ROUTES = pytest.mark.parametrize("run", [_run, _arun], ids=["sync", "async"])
 
 
+class _PostFilter(django_filters.FilterSet):
+    class Meta:
+        model = Post
+        fields = ["published"]
+
+
 class _TitleInput(serializers.Serializer):
+    title = serializers.CharField()
+
+
+class _TitleOutput(serializers.Serializer):
     title = serializers.CharField()
 
 
@@ -122,7 +135,10 @@ def _service_spec(seat: str, refuse: Callable[..., Any]) -> ServiceSpec[Any, Any
             service=lambda **_: Post.objects.create(title="t"),
             output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=refuse),
         )
-    assert seat == "output_extend_queryset"
+    assert seat in {"output_extend_queryset", "output_filtered_extend_queryset"}
+    # With a ``filter_set`` the compile runs ``extend_queryset`` inside a
+    # callable of its own, built beside the kernel's filter
+    # (the default ``output_filter_from_call``), which is a seat of its own to translate.
     return ServiceSpec(
         permission_classes=_OPEN,
         service=lambda **_: Post.objects.create(title="t"),
@@ -130,6 +146,7 @@ def _service_spec(seat: str, refuse: Callable[..., Any]) -> ServiceSpec[Any, Any
             kind=SelectorKind.RETRIEVE,
             selector=lambda *, instance: Post.objects.filter(pk=instance.pk),
             extend_queryset=_extending_from(refuse),
+            filter_set=_PostFilter if seat == "output_filtered_extend_queryset" else None,
         ),
     )
 
@@ -169,6 +186,7 @@ _SERVICE_SEATS = [
     "instance_lookup",
     "output_selector",
     "output_extend_queryset",
+    "output_filtered_extend_queryset",
 ]
 _SELECTOR_SEATS = ["selector", "selector_precondition", "selector_kwargs", "extend_queryset"]
 
@@ -285,6 +303,22 @@ def test_a_permission_subclass_keeps_its_status(run: Any) -> None:
         run(ServiceSpec(permission_classes=_OPEN, service=_raising(_Gone("gone"))))
 
     assert excinfo.value.status_code == 410
+
+
+class _Expired(NotAuthenticated):
+    default_detail = "Session expired."
+    status_code = 498
+
+
+@_ROUTES
+def test_an_authentication_subclass_keeps_its_status_and_message(run: Any) -> None:
+    with pytest.raises(KernelNotPermitted) as excinfo:
+        run(ServiceSpec(permission_classes=_OPEN, service=_raising(_Expired())))
+
+    refusal = excinfo.value
+    assert isinstance(refusal, NotAuthenticated)
+    assert refusal.status_code == 498
+    assert refusal.message == "Session expired."
 
 
 @_ROUTES
@@ -407,5 +441,105 @@ def test_the_input_serializer_s_context_provider_still_raises_drf_s_class(run: A
 
     with pytest.raises(ValidationError) as excinfo:
         run(spec, {"title": "x"})
+
+    assert excinfo.value is error
+
+
+# --- Seats the compile leaves unwrapped --------------------------------------
+#
+# The reference page lists them, so each one is held here: a DRF refusal raised
+# from one still reaches the kernel route as DRF's class.
+
+
+@_ROUTES
+def test_the_output_serializer_s_context_provider_still_raises_drf_s_class(run: Any) -> None:
+    """It runs inside the Presenter, which the compile does not wrap."""
+    error = PermissionDenied("not translated")
+    spec = SelectorSpec(
+        permission_classes=_OPEN,
+        kind=SelectorKind.LIST,
+        selector=_rows,
+        output_serializer=_TitleOutput,
+        output_serializer_context=_raising(error),
+    )
+    Post.objects.create(title="t")
+
+    result = run(spec)
+    with pytest.raises(PermissionDenied) as excinfo:
+        present(kernel_spec(spec), result)
+
+    assert excinfo.value is error
+
+
+@_ROUTES
+def test_an_affordance_s_when_callable_still_raises_drf_s_class(run: Any) -> None:
+    error = PermissionDenied("not translated")
+    spec = ServiceSpec(
+        permission_classes=_OPEN,
+        service=lambda **_: None,
+        affordances=[Affordance(code="open", reason="Closed.", when=_raising(error))],
+    )
+
+    with pytest.raises(PermissionDenied) as excinfo:
+        run(spec)
+
+    assert excinfo.value is error
+
+
+class _RefusingFilter(django_filters.FilterSet):
+    class Meta:
+        model = Post
+        fields = ["published"]
+
+    def filter_queryset(self, queryset: Any) -> Any:
+        raise PermissionDenied("not translated")
+
+
+@_ROUTES
+def test_a_filter_set_the_kernel_binds_still_raises_drf_s_class(run: Any) -> None:
+    """A selector's own ``filter_set`` is bound and run by the kernel."""
+    spec = SelectorSpec(
+        permission_classes=_OPEN,
+        kind=SelectorKind.LIST,
+        selector=_rows,
+        filter_set=_RefusingFilter,
+    )
+
+    with pytest.raises(PermissionDenied) as excinfo:
+        run(spec)
+
+    assert type(excinfo.value) is PermissionDenied
+
+
+@_ROUTES
+def test_the_filter_set_of_an_output_re_read_the_call_narrows_is_translated(run: Any) -> None:
+    """That one runs in the compile's own ``extend_queryset``, so it is a translated seat."""
+    spec = ServiceSpec(
+        permission_classes=_OPEN,
+        service=lambda **_: Post.objects.create(title="t"),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=lambda *, instance: Post.objects.filter(pk=instance.pk),
+            filter_set=_RefusingFilter,
+        ),
+    )
+
+    with pytest.raises(KernelNotPermitted):
+        run(spec)
+
+
+@_ROUTES
+def test_a_refusal_a_generator_service_raises_while_iterated_is_drf_s_class(run: Any) -> None:
+    """The service returns the generator, so the raise is after the block that translates."""
+    error = PermissionDenied("not translated")
+
+    def service(**_: Any) -> Any:
+        raise error
+        yield
+
+    result = run(ServiceSpec(permission_classes=_OPEN, service=service))
+
+    with pytest.raises(PermissionDenied) as excinfo:
+        next(result.value)
 
     assert excinfo.value is error

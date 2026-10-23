@@ -265,9 +265,24 @@ DRF's:
 A project's subclass of any of them keeps its detail and `status_code`. A
 refusal that is already the kernel's leaves as raised, and so does any other
 exception, DRF's `NotFound` and `Throttled` among them. A `progress_reporter`
-is not run inside it, since it reports and refuses nothing, and neither is an
-`input_serializer_context` provider, which runs inside the Validator: a DRF
-refusal raised from that one still reaches the kernel route as DRF's class.
+is not run inside it, since it reports and refuses nothing. A DRF refusal raised
+from any of these still reaches the kernel route as DRF's class, because the
+kernel or a Presenter runs them itself:
+
+- an `input_serializer_context` provider, which runs inside the Validator, and
+  an `output_serializer_context` provider, which runs inside the Presenter;
+- an affordance's `when` callable;
+- the methods of a selector spec's `filter_set`, which the kernel binds. A
+  service's output selector is the exception while the call narrows its re-read
+  (`output_filter_from_call`, the default): that filter runs inside the compiled
+  `extend_queryset`, so its refusals are translated;
+- a refusal a generator service raises while it is iterated, since the service
+  returned the generator and the iteration is the caller's.
+
+The compiled callables are wrappers around the author's. Identity is not kept
+(`inspect.unwrap` reaches the author's own), and a function's or method's name,
+qualname, module, docstring, attributes, annotations and signature are, with
+whether it is `async`.
 
 **Over HTTP and through `dispatch_spec`, nothing changes.** The edge re-raises
 the exception the author raised before it reads the refusal, with the context

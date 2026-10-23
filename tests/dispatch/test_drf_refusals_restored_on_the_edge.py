@@ -183,6 +183,41 @@ def test_a_raise_with_no_context_is_restored_with_none(dispatch: Any) -> None:
 
 
 @_CORES
+def test_the_exception_keeps_the_cause_it_was_raised_from(dispatch: Any) -> None:
+    """``from original`` sets the cause and suppresses the context, as it did on 0.61.0."""
+    original = KeyError("original")
+
+    def service(**_: Any) -> None:
+        raise ValidationError("whole") from original
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(ServiceSpec(service=service), params={})
+
+    assert excinfo.value.__cause__ is original
+    assert excinfo.value.__suppress_context__ is True
+
+
+@_CORES
+def test_a_refusal_raised_from_another_is_restored_from_the_marker_not_the_cause(
+    dispatch: Any,
+) -> None:
+    """drfs' own ``NotPermitted`` is left as raised, so it carries no marker to restore.
+
+    Its cause is a DRF ``PermissionDenied``, which a restore that read the
+    exception's cause rather than the marker would raise in its place.
+    """
+    error = NotPermitted("x")
+
+    def service(**_: Any) -> None:
+        raise error from PermissionDenied("y")
+
+    with pytest.raises(NotPermitted) as excinfo:
+        dispatch(ServiceSpec(service=service), params={})
+
+    assert excinfo.value is error
+
+
+@_CORES
 def test_the_kernel_s_denial_still_leaves_as_drfs_not_permitted(dispatch: Any) -> None:
     """Translated by ``translate_dispatch_errors``, which the restore leaves alone."""
     with pytest.raises(NotPermitted) as excinfo:

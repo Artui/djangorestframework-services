@@ -29,14 +29,22 @@ def translating_drf_refusals(fn: Callable[..., Any] | None) -> Callable[..., Any
     called as it was, inside
     [`translate_drf_refusals`][rest_framework_services.service_specs.translate_drf_refusals.translate_drf_refusals].
 
-    Nothing the kernel or the compile reads off it changes, as the compiler's
-    other forwarding callables keep it: an ``async def`` stays one, since the
-    kernel awaits it by its kind (test_an_async_service_s_refusal_is_translated_too);
-    the signature is ``fn``'s, which the kernel binds the call by; the
-    annotations are ``fn``'s and ``__wrapped__`` is ``fn``, so a provider's
-    return ``TypedDict`` is resolved in its own module and still names the
-    keys it fills (``tests/service_specs/test_translating_drf_refusals.py``).
-    ``fn`` itself is never stamped, as it is the author's own function.
+    It keeps what a reader of the compiled spec takes from the callable: the
+    name, qualname, module, annotations and signature, and, of a function or a
+    method, the docstring and the attributes (a tool description is read off
+    the docstring). An ``async def`` stays one, since the kernel awaits it by
+    its kind (test_an_async_service_s_refusal_is_translated_too); the signature
+    is ``fn``'s, which the kernel binds the call by; the annotations are
+    ``fn``'s and ``__wrapped__`` is ``fn``, so a provider's return
+    ``TypedDict`` is resolved in its own module and still names the keys it
+    fills (``tests/service_specs/test_translating_drf_refusals.py``).
+
+    Identity is not kept: the compiled callable is a wrapper, so
+    ``inspect.unwrap`` is what reaches the author's own. A ``functools.partial``
+    or a callable object gets neither docstring nor attributes, as its
+    ``__doc__`` is its class's and a reader that tells a function from an
+    object by ``inspect.isfunction`` would otherwise be handed that class's
+    words. ``fn`` itself is never stamped, as it is the author's own function.
     """
     if fn is None:
         # A seat the spec leaves empty stays empty, so the kernel reads it as
@@ -56,6 +64,15 @@ def translating_drf_refusals(fn: Callable[..., Any] | None) -> Callable[..., Any
     translating.__name__ = getattr(fn, "__name__", "callable")
     translating.__qualname__ = getattr(fn, "__qualname__", translating.__name__)
     translating.__module__ = getattr(fn, "__module__", None) or __name__
+    # One arc to coverage, a disjunct each: test_the_compiled_callable_keeps_the_author_s_docstring
+    # fails without ``isfunction`` for its function cases and without ``ismethod``
+    # for its method cases, and test_a_partial_or_a_callable_object_gets_no_docstring_or_attributes
+    # fails with the copy unconditional. Before ``__wrapped__`` and ``__signature__``
+    # below, so a decorated function's own do not displace the translator's
+    # (test_a_decorated_function_is_still_wrapped_by_the_translator).
+    if inspect.isfunction(fn) or inspect.ismethod(fn):
+        translating.__doc__ = fn.__doc__
+        translating.__dict__.update(fn.__dict__)
     # Read without evaluating them: on 3.14 a name imported only for type
     # checking would raise here, at compile time, where the kernel's reader
     # leaves it unresolved (``provider_keys``).

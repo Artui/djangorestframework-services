@@ -86,7 +86,8 @@ def _kernel_twin(exc: APIException) -> APIException | None:
     twin = _built(exc)
     if twin is None:
         return None
-    # The detail as DRF built it, a mapping a denial may carry included
+    # The detail as DRF built it, codes included, which is why the twin is built
+    # from the message alone, and a mapping a denial may carry
     # (test_a_permission_denied_with_a_structured_detail_keeps_it), and the
     # status a project's subclass declares (test_a_project_subclass_keeps_its_status).
     twin.detail = exc.detail
@@ -107,9 +108,9 @@ def _built(exc: APIException) -> APIException | None:
     if isinstance(exc, DispatchError | ServiceError):
         return None
     if isinstance(exc, NotAuthenticated):
-        return DRFNotAuthenticated(_message(exc), _code(exc))
+        return DRFNotAuthenticated(_message(exc))
     if isinstance(exc, PermissionDenied):
-        return NotPermitted(_message(exc), _code(exc))
+        return NotPermitted(_message(exc))
     if isinstance(exc, ValidationError):
         return DRFServiceValidationError(exc.detail)
     return None
@@ -118,10 +119,6 @@ def _built(exc: APIException) -> APIException | None:
 def _message(exc: APIException) -> str | None:
     """A denial's message, or ``None`` for the kernel's default where its detail is no message."""
     return exc.detail if isinstance(exc.detail, str) else None
-
-
-def _code(exc: APIException) -> str | None:
-    return getattr(exc.detail, "code", None)
 
 
 __all__ = ["TRANSLATED_FROM", "translate_drf_refusals"]

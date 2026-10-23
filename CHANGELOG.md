@@ -21,8 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answers 401. Over HTTP and through `dispatch_spec` / `adispatch_spec` the
   exception the author raised is restored, so those routes answer exactly as
   before. Any other DRF `APIException` (`NotFound`, `Throttled`,
-  `AuthenticationFailed`, a project's own subclass) has no kernel class and leaves
-  as raised; a serializer-context provider is not covered either.
+  `AuthenticationFailed`, a project's own `APIException` outside those three) has
+  no kernel class and leaves as raised; a serializer-context provider is not
+  covered either.
+- **The compiled spec's callables are wrappers, not the author's objects.** The
+  service, selector, preconditions, `kwargs` and `input_data` providers and
+  `extend_queryset` that `kernel_spec(spec)` carries are the compile's own
+  callables around the author's, so `is` no longer holds against what the author
+  declared; `inspect.unwrap` reaches the author's callable. A function's or
+  method's name, qualname, module, docstring, attributes, annotations and
+  signature are kept, as is whether it is `async`, so a tool description read
+  off the docstring is the author's. A `functools.partial` or a callable object
+  has neither docstring nor attributes on the wrapper, and `inspect.unwrap`
+  still reaches it.
 - **`SerializerPresenter` refuses to render with the kernel's `InvalidArguments`**,
   drfs' dual class, where it raised DRF's `ValidationError`. A list detail is now
   keyed under `non_field_errors`; a mapping detail is unchanged.
