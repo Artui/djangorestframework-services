@@ -62,7 +62,11 @@ dependencies = [
     # output-shaping parameters, ``returns_many`` for a service presenting its
     # own return as a list, ``json_schema_extra`` on a parameter and an output
     # field, and a permission check reaching the call's seeds by naming them.
-    "django-service-specs>=0.14.0",
+    # 0.15.0 adds ``Parameter.reflected``: a read this package takes off a
+    # signature is marked, and the kernel fills a marked read from a registered
+    # seed on any dispatch, which is what lets the edge stop compiling a seed's
+    # name out of the reads per call.
+    "django-service-specs>=0.15.0",
 ]
 
 [project.optional-dependencies]
