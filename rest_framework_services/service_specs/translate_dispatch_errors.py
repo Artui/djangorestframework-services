@@ -50,7 +50,13 @@ def translate_dispatch_errors() -> Generator[None]:
     - anything that is not a ``DispatchError``, a service's own refusals
       among them;
     - a ``DispatchError`` that is already a DRF exception, such as a dual-base
-      class a validator raised itself, which both ladders already catch;
+      class a validator raised itself, which both ladders already catch. An
+      author callable's DRF ``PermissionDenied`` and ``NotAuthenticated`` reach
+      here as such a class, translated by
+      [`translate_drf_refusals`][rest_framework_services.service_specs.translate_drf_refusals.translate_drf_refusals]
+      as the compile hands the kernel the callable, and the DRF edge restores
+      the author's exception itself (its ``ValidationError`` reaches here as a
+      service's refusal, not a ``DispatchError``);
     - a ``DispatchError`` with no twin here, which keeps the kernel's class
       rather than be given a DRF answer nobody declared.
 

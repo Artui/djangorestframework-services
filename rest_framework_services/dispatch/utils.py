@@ -24,7 +24,7 @@ from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
-from rest_framework.exceptions import ErrorDetail, ValidationError
+from rest_framework.exceptions import APIException, ErrorDetail, ValidationError
 from rest_framework.settings import api_settings
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
@@ -42,6 +42,7 @@ from rest_framework_services.service_specs.kernel_spec_variant import kernel_spe
 from rest_framework_services.service_specs.translate_dispatch_errors import (
     translate_dispatch_errors,
 )
+from rest_framework_services.service_specs.translate_drf_refusals import TRANSLATED_FROM
 from rest_framework_services.service_specs.utils import (
     EDGE_CALL,
     SERIALIZER_CONTEXT_SEED,
@@ -1862,6 +1863,16 @@ def edge_errors(
 ) -> Generator[None]:
     """The kernel's refusals as DRF's, around a whole edge call.
 
+    - A refusal the compile translated from an author's DRF exception
+      (``translate_drf_refusals``) is that exception again, re-raised before
+      any arm below reads it, with the context it was raised in. So the arms
+      see the class, detail and status they saw before the kernel route was
+      given the kernel's classes, a project subclass's own ``status_code``
+      included (``tests/dispatch/test_drf_refusals_restored_on_the_edge.py``).
+      A refusal drfs raised itself carries no exception to restore and is
+      left alone: ``translate_dispatch_errors``'s twins
+      (test_the_kernel_s_denial_still_leaves_as_drfs_not_permitted) and a
+      dual class raised as it is (test_drfs_own_not_permitted_leaves_exactly_as_raised).
     - Every kernel ``DispatchError`` leaves as its dual-base twin, through
       ``translate_dispatch_errors``.
     - A ``many`` spec whose rows arrived as ``params`` itself - an HTTP list
@@ -1892,7 +1903,20 @@ def edge_errors(
     bare_rows = isinstance(spec, ServiceSpec) and spec.many and not many_as_argument
     try:
         with translate_dispatch_errors():
-            yield
+            try:
+                yield
+            except APIException as exc:
+                raised = getattr(exc, TRANSLATED_FROM, None)
+                if raised is None:
+                    raise
+                # Raising it here makes the translated refusal its context;
+                # the context it was raised in is put back as it propagates
+                # (test_the_exception_keeps_the_context_it_was_raised_in).
+                context = raised.__context__
+                try:
+                    raise raised
+                finally:
+                    raised.__context__ = context
     except InvalidArguments as exc:
         drf = _drf_body_refusal(spec, params, bare_rows=bare_rows)
         if drf is not None:

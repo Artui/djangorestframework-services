@@ -12,10 +12,15 @@ from django_service_specs.output.field_marking import FieldMarking
 from django_service_specs.output.output import Output, OutputField
 from django_service_specs.output.presentation_context import PresentationContext
 from django_service_specs.output.presenter import Presenter
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
+from django_service_specs.parameters.non_field_errors import NON_FIELD_ERRORS
 from rest_framework import serializers
 from rest_framework.fields import empty as _drf_empty
 
 from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
+from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.renderable_serializer_class import (
     renderable_serializer_class,
 )
@@ -228,9 +233,33 @@ class SerializerPresenter(Presenter):
 
         ``None`` is presented as ``None``: it is JSON's null, and a serializer
         handed none renders a row of blank fields indistinguishable from a real one.
+
+        A serializer refusing to render, DRF's ``ValidationError``, leaves as
+        the dual-base
+        [`InvalidArguments`][rest_framework_services.service_specs.invalid_arguments.InvalidArguments],
+        raised from it, so a route over the kernel's ``present`` reads the
+        kernel's refusal of the arguments, a read-shaping ``fields`` naming no
+        field among them. A mapping detail is kept as it is, and a list, which
+        is all DRF makes of a message, goes under the kernel's
+        ``NON_FIELD_ERRORS``; every message keeps its code. One that is
+        already the kernel's ``InvalidArguments`` leaves as raised. No route of
+        this package's own presents through here, so a live view and
+        ``render_spec_output`` still answer DRF's class
+        (``tests/service_specs/test_a_presenter_s_refusal.py``).
         """
         if value is None:
             return None
+        try:
+            return self._data(value, context)
+        except KernelInvalidArguments:
+            raise
+        except serializers.ValidationError as exc:
+            detail = exc.detail
+            raise InvalidArguments(
+                detail if isinstance(detail, Mapping) else {NON_FIELD_ERRORS: detail}
+            ) from exc
+
+    def _data(self, value: Any, context: PresentationContext | None) -> Any:
         if context is None:
             return self.serializer_class(value, context=_context()).data
         return self.serializer_class(

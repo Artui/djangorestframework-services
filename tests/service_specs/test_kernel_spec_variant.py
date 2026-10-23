@@ -119,7 +119,7 @@ def test_a_declared_lookup_is_kept() -> None:
     compiled = _service(kernel_spec_variant(spec, target=True))
 
     assert compiled.instance_selector_spec is not None
-    assert compiled.instance_selector_spec.selector is _lookup
+    assert compiled.instance_selector_spec.selector.__wrapped__ is _lookup
 
 
 def test_a_selector_spec_takes_no_stand_in() -> None:
