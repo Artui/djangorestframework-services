@@ -160,6 +160,17 @@ lenient variant (`kernel_spec_variant(spec, lenient=True)`) whose parameters
 carry their names alone, so DRF's serializer is the only validator and answers
 in its own words; off HTTP the parameters carry their types and the kernel
 checks them first.
+
+A required field named like a seed has no parameter, so no call through the
+kernel's `dispatch` can send it, although HTTP and `dispatch_spec` read it from
+the body. `SerializerValidator.unsendable` names those fields, a `frozenset` of
+field names computed beside `parameters()`, so a transport can refuse such a
+spec before a call reaches it: `getattr(compiled.validator, "unsendable",
+frozenset())`. It names a required `user`, `result` or `serializer`, a `many` spec's
+row fields included, and the names the edge's variant excludes. It names no optional, defaulted, hidden or
+read-only field, no field the Validator declares a parameter for (a field named like a
+registered seed is one on the compiled spec), and says nothing of `partial`,
+which is the compiled spec's. Nothing in drfs reads it; HTTP is unchanged.
 `SerializerPresenter` is the kernel's `Presenter` over an output serializer,
 with the spec's `field_audiences` layered over the serializer's own markings.
 
