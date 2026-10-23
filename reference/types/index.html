@@ -5607,8 +5607,11 @@ after validation and target resolution, so each sees <code>data</code> /
 <code>serializer</code> alongside <code>instance</code> or <code>collection</code> / <code>user</code> /
 <code>request</code>. Raise-to-abort: the return value is ignored, so a
 predicate returning <code>False</code> does nothing. Raise <code>ServiceError</code>
-or <code>ServiceValidationError</code> — every transport maps those, whereas
-a DRF <code>APIException</code> is mapped on HTTP only.</p>
+or <code>ServiceValidationError</code> — every transport maps those. DRF's
+<code>ValidationError</code>, <code>PermissionDenied</code> and <code>NotAuthenticated</code>
+reach the kernel's route as the kernel's classes too; any other DRF
+<code>APIException</code> (<code>NotFound</code>, <code>Throttled</code>, a project's own
+<code>APIException</code> outside those three) is mapped on HTTP only.</p>
               </div>
             </td>
           </tr>

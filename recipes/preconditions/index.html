@@ -1786,9 +1786,13 @@ a raise.</p>
 <p><strong>Raise a <code>ServiceError</code> member, not a DRF exception.</strong></p>
 <p>The <code>ServiceError</code> family is the framework-agnostic error every transport already
 maps: to a response over HTTP, to a failed tool result over MCP, to a retryable
-error under an agent toolset. A DRF <code>APIException</code> subclass works over HTTP and
-escapes the mapping everywhere else — the same rule lands as a clean 409 for a
-browser and an unhandled internal error for an agent.</p>
+error under an agent toolset. A DRF <code>APIException</code> subclass works over HTTP and,
+apart from three, escapes the mapping everywhere else — the same rule lands as a
+clean 409 for a browser and an unhandled internal error for an agent. The three are
+DRF's <code>ValidationError</code>, <code>PermissionDenied</code> and <code>NotAuthenticated</code>, which reach the
+kernel's route as the kernel's own refusals
+(<a href="../../reference/service-specs/#an-authors-drf-refusals-as-the-kernels">An author's DRF refusals as the kernel's</a>);
+a <code>ServiceError</code> member still says more about <em>what kind</em> of failure it is.</p>
 <p>Pick the member that says <em>what kind</em> of failure it is, and every transport gets
 the distinction:</p>
 <table>
