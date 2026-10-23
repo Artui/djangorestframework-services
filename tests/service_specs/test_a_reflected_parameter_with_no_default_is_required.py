@@ -547,6 +547,13 @@ def _marked(*, pk: Annotated[int, InputRequired()]) -> Any:
     return None
 
 
+def _open_selector_taking_pk(*, pk: Annotated[int, InputRequired()]) -> Any:
+    return None
+
+
+def _wants_pk(*, pk: int) -> None: ...
+
+
 def _defaulted(*, pk: int = 0, status: str) -> Any:
     return None
 
@@ -702,6 +709,15 @@ def _lookup_s(spec: Any, **options: Any) -> Any:
             id="auto-service-precondition-declared-without-required",
         ),
         # Kept: required for a reason of its own.
+        pytest.param(
+            lambda: (
+                kernel_spec(_selector(_open_selector_taking_pk, preconditions=[_wants_pk])).reads
+            ),
+            lambda: _own(_selector(_open_selector_taking_pk, preconditions=[_wants_pk])),
+            "pk",
+            False,
+            id="input-required-beside-a-precondition",
+        ),
         pytest.param(
             lambda: kernel_spec(_selector(_marked)).reads,
             lambda: _own(_selector(_marked)),

@@ -132,10 +132,7 @@ def as_kernel_spec(
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
       winning over a reflected one of its name, required where the read says
       so or the parameter it replaces is (a read declaring a ``default`` is
-      not: ``_merge``). A read naming a parameter of the service under
-      ``AUTO`` or ``BUNDLE``, or of a precondition, which no reflected
-      Parameter stands beside, is required the same way (``_requiring``). It is a read unless it is a
-      shape (below); one the target lookup reads joins the lookup's reads.
+      not: ``_merge``), and a read unless it is a shape (below); one the target lookup reads joins the lookup's reads.
       Every read taken off a signature is marked ``reflected`` and a declared
       one is not, so the kernel fills a registered pool seed's name in the
       former on every dispatch, ``kernel_spec(spec)``'s included, and still
@@ -1195,8 +1192,8 @@ def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset
     """The reads ``as_kernel_spec(spec)`` requires for having no default alone: the spec's, then its target lookup's.
 
     Each is a parameter of the callable the read is reflected from - a
-    selector spec's selector and preconditions, a service spec's service and
-    preconditions, a target lookup's selector - that takes a keyword and
+    selector spec's selector, a service spec's service and preconditions
+    under ``spread``, a target lookup's selector - that takes a keyword and
     has no default (``_reflected``). The DRF edge relaxes exactly these in
     each variant it dispatches (``kernel_spec_variant``), so a row a view hands in still answers a lookup's key, and a missing
     argument is refused at the stage the edge documents rather than up front.
@@ -1214,11 +1211,14 @@ def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset
     """
     declared = _saying_required(spec.reads)
     if not isinstance(spec, AffordanceDeclarer):
-        # A top-level selector's preconditions take a read as the selector does.
+        # A top-level selector's preconditions take a read as the selector does. A
+        # name any of them marks ``InputRequired`` stays required whichever callable
+        # takes it plain (the ``input-required-beside-a-precondition`` case of
+        # test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
+        callables = [spec.selector, *(spec.preconditions or ())]
         return (
-            _no_default(spec.selector).union(
-                *(_no_default(precondition) for precondition in spec.preconditions or ())
-            )
+            frozenset().union(*map(_no_default, callables))
+            - frozenset().union(*map(_input_required, callables))
             - declared,
             frozenset(),
         )
@@ -1247,6 +1247,16 @@ def _saying_required(entries: Sequence[UrlKwarg | QueryParam] | None) -> frozens
     to end. A ``QueryParam`` has no ``required``, so it never is.
     """
     return frozenset(entry.name for entry in entries or () if getattr(entry, "required", False))
+
+
+def _input_required(fn: Callable[..., Any]) -> frozenset[str]:
+    """The names ``fn`` marks ``InputRequired``, which are required for that reason alone."""
+    hints = callable_type_hints(fn)
+    return frozenset(
+        name
+        for name in inspect.signature(fn).parameters
+        if read_schema_markers(hints.get(name, Any))[1]
+    )
 
 
 def _no_default(fn: Callable[..., Any]) -> frozenset[str]:
@@ -1465,8 +1475,9 @@ def _requiring(declared: Sequence[Parameter], names: frozenset[str]) -> list[Par
     test_a_read_naming_a_parameter_with_no_default_compiles_required fails
     without the first, test_the_other_seats_keep_a_default_optional (its
     ``*-read-with-a-default`` cases) without the second, and
-    test_a_read_no_callable_takes_by_name_is_not_made_required guards ``names``
-    being the callables' alone.
+    test_a_read_no_callable_takes_by_name_is_not_made_required (with
+    test_a_parameter_with_a_default_stays_optional_under_a_read) without the
+    name check, which keeps ``names`` the callables' alone.
     """
     return [
         dataclasses.replace(read, required=True)

@@ -313,13 +313,13 @@ def test_the_other_seats_keep_a_default_optional(compiled: Callable[[], Any], na
     assert name not in spec_input_schema(built).get("required", [])
 
 
-# A read no callable of the call names is not made required by another's parameter.
+# Kills the ``read.name in names`` conjunct of ``_requiring``: a ``UrlKwarg`` is
+# never a shape, so a read nothing takes by name stays a read, and only the
+# callables' own names may make it required.
 def test_a_read_no_callable_takes_by_name_is_not_made_required() -> None:
-    built = _compiled(_selector(_no_params, QueryParam("other"), preconditions=(_a_project_check,)))
+    built = _compiled(_selector(_no_params, UrlKwarg("other"), preconditions=(_a_project_check,)))
 
-    assert (
-        built.parameters().get("other") is None or built.parameters().get("other").required is False
-    )
+    assert built.parameters().get("other").required is False
 
 
 # Kills the ``read.required`` operand: the parameter is optional by itself,
