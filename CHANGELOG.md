@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A declared `UrlKwarg` or `QueryParam` keeps the requiredness of the callable
+  parameter it names.** A read naming a selector or target-lookup parameter with
+  no default used to compile optional, so `kernel_spec(spec).parameters()` and
+  `spec_input_schema` did not ask the caller for a value `dispatch` refused the
+  call without. Such a read is now `required` in both, as it is with no read
+  declared, and so is one on a spread service's parameter. A read that declares
+  a `default`, or names a parameter that has one, stays optional, and
+  `UrlKwarg(required=True)` requires it either way. The DRF edge still relaxes
+  these, so a view handing the row it resolved answers without the lookup's key.
+
 ## [0.60.0] — 2026-10-23
 
 ### Changed

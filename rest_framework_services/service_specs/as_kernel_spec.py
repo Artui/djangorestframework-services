@@ -130,8 +130,9 @@ def as_kernel_spec(
       resolved, and each refusal stage the edge documents, answer as they
       always did. A misplaced marker is refused here, so at registration. Each declared ``UrlKwarg``
       and ``QueryParam`` in the spec's own ``reads`` is a Parameter too,
-      winning over a reflected one of its name, and a read unless it is a
-      shape (below); one the target lookup reads joins the lookup's reads.
+      winning over a reflected one of its name, required where the read says
+      so or the parameter it replaces is (a read declaring a ``default`` is
+      not: ``_merge``), and a read unless it is a shape (below); one the target lookup reads joins the lookup's reads.
       Every read taken off a signature is marked ``reflected`` and a declared
       one is not, so the kernel fills a registered pool seed's name in the
       former on every dispatch, ``kernel_spec(spec)``'s included, and still
@@ -1175,14 +1176,15 @@ def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset
     test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for:
     an ``InputRequired`` parameter (``input-required``), a required key of an
     ``Unpack``-ed ``TypedDict``, which is no keyword of the signature
-    (``typed-dict-key``), and a declared read of the name, which wins over
-    the reflected one: a selector spec's (``declared-by-the-selector-spec``), a
+    (``typed-dict-key``), and a declared read of the name that says
+    ``required=True``, which wins over the reflected one (a declared read
+    that does not is relaxed as the parameter it names, ``_saying_required``): a selector spec's (``declared-by-the-selector-spec``), a
     service spec's for its own reads (``declared-by-the-service-spec``) or for
     its lookup's (``declared-by-the-spec-for-its-lookup``), or the lookup's own
     (``declared-by-the-lookup``). A spread service's preconditions are named
     beside it (``spread-precondition``).
     """
-    declared = frozenset(entry.name for entry in spec.reads or ())
+    declared = _saying_required(spec.reads)
     if not isinstance(spec, AffordanceDeclarer):
         return _no_default(spec.selector) - declared, frozenset()
     own = _no_default(spec.service).union(
@@ -1192,8 +1194,21 @@ def required_for_having_no_default(spec: Any) -> tuple[frozenset[str], frozenset
     for role in ("instance", "collection"):
         nested = getattr(spec, f"{role}_selector_spec")
         if nested is not None and nested.selector is not None:
-            lookup |= _no_default(nested.selector) - {entry.name for entry in nested.reads or ()}
+            lookup |= _no_default(nested.selector) - _saying_required(nested.reads)
     return own - declared, lookup - declared
+
+
+def _saying_required(entries: Sequence[UrlKwarg | QueryParam] | None) -> frozenset[str]:
+    """The names of the declared reads that say ``required=True``: required for a reason of their own.
+
+    A declared read that says nothing of it compiles required only for the
+    parameter it names having no default (``_merge``), which is the rule the
+    edge relaxes, so it is not named here
+    (the ``*-declared-without-required`` cases of
+    test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
+    A ``QueryParam`` has no ``required``, so it never is.
+    """
+    return frozenset(entry.name for entry in entries or () if getattr(entry, "required", False))
 
 
 def _no_default(fn: Callable[..., Any]) -> frozenset[str]:
@@ -1363,11 +1378,35 @@ def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) 
 def _merge(
     reflected: Sequence[Parameter], declared: Sequence[Parameter], *, skip: frozenset[str]
 ) -> Parameters:
-    """``reflected`` with each declared Parameter in place of its namesake, then the rest declared."""
+    """``reflected`` with each declared Parameter in place of its namesake, then the rest declared.
+
+    A declared read says where a value comes from, not that the callable can run
+    without one, so the Parameter that takes a reflected one's place is required
+    when either is: the read says so (``UrlKwarg(required=True)``) or the
+    parameter it names would be with no read declared. One arc to coverage, so
+    each operand is named: test_a_read_naming_a_parameter_with_no_default_compiles_required
+    fails without ``reflected.required``, and
+    test_a_read_saying_required_requires_a_parameter_that_has_a_default without
+    ``read.required``. A read declaring a ``default`` is the value that fills the
+    parameter, which stays optional
+    (test_a_read_with_a_default_stays_optional fails without that operand), and a
+    parameter with a default of its own was never required
+    (test_a_parameter_with_a_default_stays_optional_under_a_read).
+    """
     by_name = {parameter.name: parameter for parameter in declared}
-    merged = [by_name.pop(parameter.name, parameter) for parameter in reflected]
+    merged = [
+        _declared_over(by_name.pop(parameter.name, None), parameter) for parameter in reflected
+    ]
     merged.extend(by_name.values())
     return Parameters(tuple(parameter for parameter in merged if parameter.name not in skip))
+
+
+def _declared_over(read: Parameter | None, reflected: Parameter) -> Parameter:
+    """``read`` in place of ``reflected``, required where either is; ``reflected`` when none is declared."""
+    if read is None:
+        return reflected
+    required = read.required or (reflected.required and read.default is UNSET)
+    return dataclasses.replace(read, required=required)
 
 
 def _names(parameters: Sequence[Parameter]) -> frozenset[str]:

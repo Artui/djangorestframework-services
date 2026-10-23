@@ -56,8 +56,9 @@ def kernel_spec_variant(
     such a parameter from a row a view hands in, and refuses a missing one at
     the stage it documents, the target lookup's or the service's own
     (test_the_edge_s_variant_relaxes_exactly_the_reads_the_rule_asks_for).
-    ``InputRequired``, a required ``TypedDict`` key and a declared read stay
-    required.
+    ``InputRequired``, a required ``TypedDict`` key and a declared read saying
+    ``required=True`` stay required; a declared read that does not is relaxed
+    as the parameter it names would be.
 
     - ``partial``: the per-request flag a ``PATCH`` sets, compiled by
       [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec];

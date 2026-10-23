@@ -62,6 +62,7 @@ from rest_framework_services.service_specs.as_kernel_spec import (
 )
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.types.input_required import InputRequired
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -542,6 +543,47 @@ def _lookup_s(spec: Any, **options: Any) -> Any:
             "reason",
             True,
             id="spread-precondition",
+        ),
+        # A declared read of the name that says nothing of requiredness: the
+        # parameter has no default, so the rule alone requires it, and the edge
+        # relaxes it as it does with no read declared.
+        pytest.param(
+            lambda: kernel_spec(_selector(_by_status, reads=[UrlKwarg("status")])).reads,
+            lambda: _own(_selector(_by_status, reads=[UrlKwarg("status")])),
+            "status",
+            True,
+            id="selector-declared-without-required",
+        ),
+        pytest.param(
+            lambda: (
+                as_kernel_spec(
+                    _spread_service(_spread, reads=[QueryParam("note")]), spread=True
+                ).reads
+            ),
+            lambda: _own(_spread_service(_spread, reads=[QueryParam("note")]), spread=True),
+            "note",
+            True,
+            id="spread-service-declared-without-required",
+        ),
+        pytest.param(
+            lambda: _target_reads(
+                kernel_spec(_lookup_service("instance", _lookup, reads=[QueryParam("pk")]))
+            ),
+            lambda: _lookup_s(_lookup_service("instance", _lookup, reads=[QueryParam("pk")])),
+            "pk",
+            True,
+            id="lookup-declared-by-the-spec-without-required",
+        ),
+        pytest.param(
+            lambda: _target_reads(
+                kernel_spec(_lookup_service("collection", _lookup, lookup_reads=[QueryParam("pk")]))
+            ),
+            lambda: _lookup_s(
+                _lookup_service("collection", _lookup, lookup_reads=[QueryParam("pk")])
+            ),
+            "pk",
+            True,
+            id="lookup-declared-by-the-lookup-without-required",
         ),
         # Kept: required for a reason of its own.
         pytest.param(

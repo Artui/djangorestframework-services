@@ -57,7 +57,9 @@ class QueryParam:
     omitting one is legitimate by construction, and the spec runs correctly
     without it. Requiredness belongs to inputs the spec cannot run without, which
     is [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and the
-    ``InputRequired`` marker.
+    ``InputRequired`` marker. A param naming a parameter of a callable of the call
+    that has no default is still required, as that parameter is: the read
+    declares where the value comes from, not that the callable can run without it.
     """
 
     name: str
