@@ -282,7 +282,9 @@ kernel or a Presenter runs them itself:
 The compiled callables are wrappers around the author's. Identity is not kept
 (`inspect.unwrap` reaches the author's own), and a function's or method's name,
 qualname, module, docstring, attributes, annotations and signature are, with
-whether it is `async`.
+whether it is `async`. A `functools.partial` or a callable object gets neither
+its docstring nor its attributes copied, so a reader that wants the author's own
+docstring for one of those reads it off `inspect.unwrap(...)`.
 
 **Over HTTP and through `dispatch_spec`, nothing changes.** The edge re-raises
 the exception the author raised before it reads the refusal, with the context
