@@ -20,6 +20,9 @@ def test_the_reserved_set_is_the_kernels() -> None:
     """``result`` and ``queryset`` join it; ``request`` and ``serializer`` leave
     it, because they are an HTTP adapter's values and not the kernel's; the
     call's ``call_context`` is the kernel's."""
+    # A superset, not an equality: the kernel may reserve more names than drfs
+    # knows of. The assertion goes back to exact when drfs raises its kernel
+    # floor to a release that reserves them.
     assert (
         frozenset(
             {
@@ -33,7 +36,7 @@ def test_the_reserved_set_is_the_kernels() -> None:
                 "call_context",
             }
         )
-        == RESERVED_POOL_SEEDS
+        <= RESERVED_POOL_SEEDS
     )
 
 
