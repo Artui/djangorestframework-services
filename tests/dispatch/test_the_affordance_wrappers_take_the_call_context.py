@@ -1,8 +1,9 @@
 """The four affordance wrappers take the kernel's ``call_context`` and pass it on.
 
-Each wrapper mirrors the kernel's signature by hand, so a keyword the kernel
-adds is unreachable through drfs' name until it is added here. The first test
-is that mirror, checked; the rest hand a condition the dict the caller passed.
+Each wrapper mirrors the kernel's parameter names and kinds by hand, so a
+keyword the kernel adds is unreachable through drfs' name until it is added
+here. The first test is that mirror, checked; the rest hand a condition the
+dict the caller passed.
 """
 
 from __future__ import annotations
@@ -35,7 +36,9 @@ from rest_framework_services.types.affordance import Affordance
 
 
 def _parameters(fn: Any) -> list[tuple[str, Any]]:
-    return [(name, param.default) for name, param in inspect.signature(fn).parameters.items()]
+    # Defaults are left out on purpose: drfs keeps a RESERVED_POOL_SEEDS default
+    # on ``reserved`` where the kernel requires it. Order stays, so drift fails.
+    return [(name, param.kind) for name, param in inspect.signature(fn).parameters.items()]
 
 
 @pytest.mark.parametrize(
