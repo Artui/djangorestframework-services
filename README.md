@@ -873,7 +873,7 @@ builds on:
 ## Examples
 
 A minimal but runnable example project lives in
-[`examples/`](examples/). It demonstrates the create / list / retrieve /
+[`examples/`](https://github.com/Artui/djangorestframework-services/tree/main/examples). It demonstrates the create / list / retrieve /
 update / destroy flows on a single resource and two custom actions via
 `@service_action`, a query value the list selector declares in `reads`, a
 field `field_audiences` hides from an agent, and a `dispatch_spec(partial=True)`
@@ -902,8 +902,9 @@ CI runs the full Python × Django matrix with 100% coverage gating.
 
 ## Status
 
-Pre-1.0. Public API is stable but may shift. See
-[`CHANGELOG.md`](CHANGELOG.md) for the full release history.
+Final release, 0.62.1. See
+[`CHANGELOG.md`](https://github.com/Artui/djangorestframework-services/blob/main/CHANGELOG.md)
+for the full release history.
 
 ---
 

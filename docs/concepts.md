@@ -369,9 +369,8 @@ Three things it deliberately does not do:
 - **It is not copied or frozen.** The spec is frozen; the mapping you
   pass is not, and it is stored as given. Pass something you don't mutate.
 - **It assigns no meaning to a key it has not reserved.** `"json_schema"`
-  is reserved and is the only one; a key the library later wants is
-  announced in the changelog and refused loudly rather than quietly
-  reinterpreted. Everything else stays yours.
+  is reserved and is the only one; a key the library might later want
+  would be refused loudly rather than quietly reinterpreted. Everything else stays yours.
 
 ### Polymorphic actions
 
