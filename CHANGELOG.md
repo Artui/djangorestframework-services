@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.1] — 2026-11-04
+
+### Changed
+
+- **This is the final release of `djangorestframework-services`; development
+  continues as [`django-spec-rest`](https://pypi.org/project/django-spec-rest/)**
+  ([source](https://github.com/Artui/django-spec-rest),
+  [documentation](https://artui.github.io/django-spec-rest/)). This package
+  receives no further releases. The code is unchanged from 0.62.0: nothing under
+  `rest_framework_services/` differs, and the dependencies and extras are the
+  same. The package adds no shim, re-export or `DeprecationWarning`. The PyPI
+  classifier is now `Development Status :: 7 - Inactive`, and the README and every
+  documentation page carry a notice pointing at `django-spec-rest`, whose
+  [Moving from djangorestframework-services](https://artui.github.io/django-spec-rest/moving-from-drfs/)
+  page maps each name to its new home. Move a project in one change, never view
+  by view: this package and `django-spec-rest` cannot be imported in one process,
+  because each registers DRF's `ValidationError` row-error reader and the kernel
+  refuses the second registration.
+- The two other changes since 0.62.0 are to tests only: the reserved pool seed
+  test accepts names a newer kernel adds, and the affordance wrapper parity test
+  compares parameter names and kinds rather than defaults, so the suite passes
+  against a kernel that makes `reserved=` keyword-only.
+
 ## [0.62.0] — 2026-10-23
 
 ### Changed
@@ -5661,7 +5684,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.62.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.62.1...HEAD
+[0.62.1]: https://github.com/Artui/djangorestframework-services/compare/v0.62.0...v0.62.1
 [0.62.0]: https://github.com/Artui/djangorestframework-services/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/Artui/djangorestframework-services/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/djangorestframework-services/compare/v0.59.0...v0.60.0

@@ -7,6 +7,9 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  # overrides/ sits beside mkdocs.yml, outside docs_dir, so main.html is a template
+  # and is not copied into the built site as a file.
+  custom_dir: overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{#- The site-wide notice: this package's final release points readers at its
+    replacement. Both links are absolute, because the target is another site. -#}
+{% block announce %}
+  This package has had its final release and receives no further releases.
+  Development continues as
+  <a href="https://artui.github.io/django-spec-rest/"><strong>django-spec-rest</strong></a>;
+  see <a href="https://artui.github.io/django-spec-rest/moving-from-drfs/">Moving from djangorestframework-services</a>.
+{% endblock %}

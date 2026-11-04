@@ -10,7 +10,7 @@ authors = [
 readme = "README.md"
 keywords = ["django", "djangorestframework", "drf", "services", "service-layer"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 7 - Inactive",
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 4.2",
@@ -229,7 +229,7 @@ root = ["./rest_framework_services"]
 # CHANGELOG [Unreleased] block under a new dated heading. Run via
 # `uvx bump-my-version` (no permanent dependency added to the project).
 [tool.bumpversion]
-current_version = "0.62.0"
+current_version = "0.62.1"
 allow_dirty = false
 commit = false
 tag = false
