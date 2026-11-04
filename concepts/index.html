@@ -87,6 +87,19 @@
     </div>
     <div data-md-component="announce">
       
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  This package has had its final release and receives no further releases.
+  Development continues as
+  <a href="https://artui.github.io/django-spec-rest/"><strong>django-spec-rest</strong></a>;
+  see <a href="https://artui.github.io/django-spec-rest/moving-from-drfs/">Moving from djangorestframework-services</a>.
+
+          </div>
+          
+        </aside>
+      
     </div>
     
     
@@ -2470,9 +2483,8 @@ facts only <em>your</em> code interprets.</p>
 <li><strong>It is not copied or frozen.</strong> The spec is frozen; the mapping you
   pass is not, and it is stored as given. Pass something you don't mutate.</li>
 <li><strong>It assigns no meaning to a key it has not reserved.</strong> <code>"json_schema"</code>
-  is reserved and is the only one; a key the library later wants is
-  announced in the changelog and refused loudly rather than quietly
-  reinterpreted. Everything else stays yours.</li>
+  is reserved and is the only one; a key the library might later want
+  would be refused loudly rather than quietly reinterpreted. Everything else stays yours.</li>
 </ul>
 <h3 id="polymorphic-actions">Polymorphic actions<a class="headerlink" href="#polymorphic-actions" title="Permanent link">&para;</a></h3>
 <p><code>PolymorphicServiceSpec</code> expresses a single action that accepts several
