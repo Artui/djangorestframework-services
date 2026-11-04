@@ -1,3 +1,17 @@
+> **This package has had its final release, 0.62.1. Development continues as
+> [`django-spec-rest`](https://pypi.org/project/django-spec-rest/)**
+> ([source](https://github.com/Artui/django-spec-rest),
+> [documentation](https://artui.github.io/django-spec-rest/)), which serves the
+> kernel's specs, [`django-service-specs`](https://github.com/Artui/django-service-specs),
+> over Django REST framework. This package receives no further releases. See
+> [Moving from djangorestframework-services](https://artui.github.io/django-spec-rest/moving-from-drfs/)
+> for what each name became.
+>
+> This release is code-identical to 0.62.0. Move a project in one change, never
+> view by view: this package and `django-spec-rest` cannot be imported in one
+> process, because each registers DRF's `ValidationError` row-error reader and the
+> kernel refuses the second registration.
+
 # djangorestframework-services
 
 [![CI](https://github.com/Artui/djangorestframework-services/workflows/tests/badge.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
@@ -7,7 +21,7 @@
 [![Docs](https://img.shields.io/badge/docs-artui.github.io-blue.svg)](https://artui.github.io/djangorestframework-services/)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Artui/djangorestframework-services/gh-pages/coverage.json)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](LICENSE)
+[![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](https://github.com/Artui/djangorestframework-services/blob/main/LICENSE)
 
 A service / selector layer for Django REST Framework.
 
@@ -859,7 +873,7 @@ builds on:
 ## Examples
 
 A minimal but runnable example project lives in
-[`examples/`](examples/). It demonstrates the create / list / retrieve /
+[`examples/`](https://github.com/Artui/djangorestframework-services/tree/main/examples). It demonstrates the create / list / retrieve /
 update / destroy flows on a single resource and two custom actions via
 `@service_action`, a query value the list selector declares in `reads`, a
 field `field_audiences` hides from an agent, and a `dispatch_spec(partial=True)`
@@ -888,8 +902,9 @@ CI runs the full Python × Django matrix with 100% coverage gating.
 
 ## Status
 
-Pre-1.0. Public API is stable but may shift. See
-[`CHANGELOG.md`](CHANGELOG.md) for the full release history.
+Final release, 0.62.1. See
+[`CHANGELOG.md`](https://github.com/Artui/djangorestframework-services/blob/main/CHANGELOG.md)
+for the full release history.
 
 ---
 
